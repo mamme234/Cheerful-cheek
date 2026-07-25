@@ -1,7 +1,7 @@
 {
   "name": "telegram-miniapp-backend",
   "version": "1.0.0",
-  "description": "Admin upload bot with mini app",
+  "description": "Pay-per-view media bot",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
@@ -11,6 +11,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "telegraf": "^4.15.3",
-    "axios": "^1.5.0"
+    "@paypal/checkout-server-sdk": "^1.0.3",
+    "uuid": "^9.0.0"
   }
 }
