@@ -23,7 +23,7 @@ function init() {
         if (user) {
             userId = user.id;
             const avatar = document.getElementById('userAvatar');
-            avatar.textContent = user.first_name?.charAt(0).toUpperCase() || '👤';
+            if (avatar) avatar.textContent = user.first_name?.charAt(0).toUpperCase() || '👤';
         }
     } else {
         userId = 'test_user_' + Date.now();
@@ -31,7 +31,7 @@ function init() {
     
     console.log('✅ Mini App initialized');
     console.log('📡 Backend:', BACKEND_URL);
-    console.log('👤 User:', userId);
+    console.log('👤 User ID:', userId);
     
     setupEventListeners();
     loadApp();
@@ -127,7 +127,7 @@ async function loadApp() {
         document.getElementById('mediaGrid').innerHTML = `
             <div class="empty-state">
                 <div class="empty-icon">⚠️</div>
-                <h3>Connection Error</h3>
+                <h3>Failed to Load Content</h3>
                 <p>${error.message || 'Please try again'}</p>
                 <button onclick="location.reload()" style="margin-top:16px; padding:10px 30px; background:#e94560; border:none; border-radius:12px; color:white; font-weight:600; cursor:pointer;">
                     🔄 Retry
@@ -141,23 +141,32 @@ async function loadApp() {
 
 async function loadMedia() {
     try {
-        const response = await fetch(`${BACKEND_URL}/api/media?userId=${userId}`);
+        const url = `${BACKEND_URL}/api/media?userId=${userId}`;
+        console.log('📡 Fetching:', url);
+        
+        const response = await fetch(url);
+        console.log('📡 Response status:', response.status);
+        
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const result = await response.json();
+        console.log('📦 Data:', result);
         
         if (result.success) {
             allMedia = result.data || [];
+            console.log(`✅ Loaded ${allMedia.length} media items`);
             renderGallery(allMedia);
         } else {
             throw new Error(result.error || 'Failed to load media');
         }
     } catch (error) {
-        console.error('Load media error:', error);
+        console.error('❌ Load media error:', error);
         throw error;
     }
 }
 
 async function updateStats() {
     try {
+        // Get purchases
         const purchaseRes = await fetch(`${BACKEND_URL}/api/my-purchases/${userId}`);
         const purchaseData = await purchaseRes.json();
         if (purchaseData.success) {
@@ -165,6 +174,7 @@ async function updateStats() {
             document.getElementById('navBadge').textContent = purchaseData.count || 0;
         }
         
+        // Get pending
         const pendingRes = await fetch(`${BACKEND_URL}/api/my-pending/${userId}`);
         const pendingData = await pendingRes.json();
         if (pendingData.success) {
@@ -443,7 +453,7 @@ function showLoading(show) {
 }
 
 // ==================== ADMIN SETTINGS ====================
-window.ADMIN_PAYPAL_EMAIL = 'admin@paypal.com';
+window.ADMIN_PAYPAL_EMAIL = 'lenabotrel65@outlook.com';
 window.ADMIN_PAYPAL_LINK = 'https://paypal.me/yourusername';
 
 // ==================== INIT ====================
