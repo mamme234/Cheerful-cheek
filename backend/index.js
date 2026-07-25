@@ -3,7 +3,6 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
-const { v4: uuidv4 } = require('uuid');
 
 const { startBot } = require('./bot');
 
@@ -19,13 +18,11 @@ const PURCHASES_DB_PATH = path.join(__dirname, 'database', 'purchases.json');
 // ==================== DATABASE HELPERS ====================
 const readDB = (filePath) => {
   try {
-    // Ensure directory exists
     const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
     
-    // If file doesn't exist, create with default data
     if (!fs.existsSync(filePath)) {
       const initialData = filePath.includes('media') ? [] : 
                          filePath.includes('pending') ? [] : {};
@@ -44,7 +41,6 @@ const readDB = (filePath) => {
 
 const writeDB = (filePath, data) => {
   try {
-    // Ensure directory exists
     const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
@@ -62,12 +58,6 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// Logging middleware
-app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
-  next();
-});
 
 // ==================== API ROUTES ====================
 
@@ -89,7 +79,6 @@ app.get('/api/media', (req, res) => {
     
     const userPurchases = purchases[userId] || [];
     
-    // Sort by date (newest first)
     const media = mediaDB
       .filter(item => item.approved !== false)
       .map(item => ({
@@ -128,21 +117,18 @@ app.get('/api/media/:id', (req, res) => {
       });
     }
     
-    // Check if user has purchased
     let isPurchased = false;
     if (userId) {
       const purchases = readDB(PURCHASES_DB_PATH);
       isPurchased = purchases[userId]?.includes(id) || false;
     }
     
-    // Only return file URL if purchased
     const response = {
       ...media,
       isPurchased: isPurchased,
       fileUrl: isPurchased ? media.fileUrl : null
     };
     
-    // Increment view count if purchased
     if (isPurchased) {
       media.views = (media.views || 0) + 1;
       writeDB(MEDIA_DB_PATH, mediaDB);
@@ -161,7 +147,7 @@ app.get('/api/media/:id', (req, res) => {
   }
 });
 
-// Request purchase (user clicks buy)
+// Request purchase
 app.post('/api/request-purchase', async (req, res) => {
   try {
     const { userId, mediaId } = req.body;
@@ -173,7 +159,6 @@ app.post('/api/request-purchase', async (req, res) => {
       });
     }
     
-    // Get media details
     const mediaDB = readDB(MEDIA_DB_PATH);
     const media = mediaDB.find(m => m.id === mediaId);
     
@@ -184,7 +169,6 @@ app.post('/api/request-purchase', async (req, res) => {
       });
     }
     
-    // Check if already purchased
     const purchases = readDB(PURCHASES_DB_PATH);
     if (purchases[userId]?.includes(mediaId)) {
       return res.status(400).json({
@@ -193,7 +177,6 @@ app.post('/api/request-purchase', async (req, res) => {
       });
     }
     
-    // Check if already pending
     const pending = readDB(PENDING_DB_PATH);
     const existing = pending.find(p => p.userId === userId && p.mediaId === mediaId);
     if (existing) {
@@ -203,11 +186,9 @@ app.post('/api/request-purchase', async (req, res) => {
       });
     }
     
-    // Get user info
     const users = readDB(USERS_DB_PATH);
     const user = users[userId] || { username: 'Unknown' };
     
-    // Create pending request
     const request = {
       id: `pending_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
       userId: userId,
@@ -223,7 +204,6 @@ app.post('/api/request-purchase', async (req, res) => {
     pending.push(request);
     writeDB(PENDING_DB_PATH, pending);
     
-    // Notify admin via Telegram (if bot is available)
     try {
       const ADMIN_ID = process.env.ADMIN_ID;
       if (ADMIN_ID) {
@@ -241,7 +221,6 @@ app.post('/api/request-purchase', async (req, res) => {
       }
     } catch (error) {
       console.error('Failed to notify admin:', error);
-      // Continue even if admin notification fails
     }
     
     res.json({
@@ -269,7 +248,6 @@ app.get('/api/pending-status/:userId/:mediaId', (req, res) => {
   try {
     const { userId, mediaId } = req.params;
     const pending = readDB(PENDING_DB_PATH);
-    
     const request = pending.find(p => p.userId === userId && p.mediaId === mediaId);
     
     res.json({
@@ -278,7 +256,7 @@ app.get('/api/pending-status/:userId/:mediaId', (req, res) => {
       request: request || null
     });
   } catch (error) {
-    console.error('Error checking pending status:', error);
+    console.error('Error checking pending:', error);
     res.status(500).json({
       success: false,
       error: error.message
@@ -333,209 +311,16 @@ app.get('/api/my-purchases/:userId', (req, res) => {
   }
 });
 
-// Check multiple purchase statuses
-app.post('/api/check-purchases', (req, res) => {
-  try {
-    const { userId, mediaIds } = req.body;
-    
-    if (!userId || !mediaIds || !Array.isArray(mediaIds)) {
-      return res.status(400).json({
-        success: false,
-        error: 'User ID and mediaIds array required'
-      });
-    }
-    
-    const purchases = readDB(PURCHASES_DB_PATH);
-    const userPurchases = purchases[userId] || [];
-    
-    const status = {};
-    mediaIds.forEach(id => {
-      status[id] = userPurchases.includes(id);
-    });
-    
-    res.json({
-      success: true,
-      status: status
-    });
-  } catch (error) {
-    console.error('Error checking purchases:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// Get user info
-app.get('/api/user/:userId', (req, res) => {
-  try {
-    const { userId } = req.params;
-    const users = readDB(USERS_DB_PATH);
-    const user = users[userId];
-    
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: 'User not found'
-      });
-    }
-    
-    // Get purchase stats
-    const purchases = readDB(PURCHASES_DB_PATH);
-    const userPurchases = purchases[userId] || [];
-    
-    // Get pending stats
-    const pending = readDB(PENDING_DB_PATH);
-    const userPending = pending.filter(p => p.userId === userId);
-    
-    res.json({
-      success: true,
-      data: {
-        ...user,
-        purchaseCount: userPurchases.length,
-        pendingCount: userPending.length
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching user:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// ==================== ADMIN API ROUTES (Protected) ====================
-
-// Check if user is admin
-const isAdmin = (req, res, next) => {
-  const adminId = process.env.ADMIN_ID;
-  const userId = req.headers['x-user-id'];
-  
-  if (!userId || userId !== adminId) {
-    return res.status(403).json({
-      success: false,
-      error: 'Unauthorized. Admin access required.'
-    });
-  }
-  next();
-};
-
-// Get all pending requests (admin only)
-app.get('/api/admin/pending', isAdmin, (req, res) => {
-  try {
-    const pending = readDB(PENDING_DB_PATH);
-    res.json({
-      success: true,
-      count: pending.length,
-      data: pending.sort((a, b) => new Date(b.date) - new Date(a.date))
-    });
-  } catch (error) {
-    console.error('Error fetching pending:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// Get all users (admin only)
-app.get('/api/admin/users', isAdmin, (req, res) => {
-  try {
-    const users = readDB(USERS_DB_PATH);
-    const purchases = readDB(PURCHASES_DB_PATH);
-    const pending = readDB(PENDING_DB_PATH);
-    
-    // Add stats to each user
-    const usersWithStats = Object.values(users).map(user => ({
-      ...user,
-      purchaseCount: (purchases[user.id] || []).length,
-      pendingCount: pending.filter(p => p.userId === user.id).length
-    }));
-    
-    res.json({
-      success: true,
-      count: usersWithStats.length,
-      data: usersWithStats
-    });
-  } catch (error) {
-    console.error('Error fetching users:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// Get revenue stats (admin only)
-app.get('/api/admin/stats', isAdmin, (req, res) => {
-  try {
-    const mediaDB = readDB(MEDIA_DB_PATH);
-    const purchases = readDB(PURCHASES_DB_PATH);
-    const pending = readDB(PENDING_DB_PATH);
-    
-    // Calculate total revenue
-    let totalRevenue = 0;
-    let totalPurchases = 0;
-    
-    mediaDB.forEach(media => {
-      totalRevenue += (media.purchases || 0) * media.price;
-      totalPurchases += (media.purchases || 0);
-    });
-    
-    // Count unique users
-    const uniqueUsers = Object.keys(purchases).length;
-    
-    res.json({
-      success: true,
-      data: {
-        totalMedia: mediaDB.length,
-        totalPurchases: totalPurchases,
-        totalRevenue: totalRevenue,
-        uniqueUsers: uniqueUsers,
-        pendingCount: pending.length,
-        averagePrice: totalPurchases > 0 ? (totalRevenue / totalPurchases) : 0
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching stats:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// ==================== 404 HANDLER ====================
-app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    error: 'Route not found'
-  });
-});
-
-// ==================== ERROR HANDLER ====================
-app.use((err, req, res, next) => {
-  console.error('Server error:', err.stack);
-  res.status(500).json({
-    success: false,
-    error: err.message || 'Internal server error'
-  });
-});
-
 // ==================== START SERVER ====================
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📸 Media API: https://cheerful-cheek.onrender.com:${PORT}/api/media`);
-  console.log(`💚 Health check: https://cheerful-cheek.onrender.com:${PORT}/api/health`);
+  console.log(`📸 Media API: http://localhost:${PORT}/api/media`);
+  console.log(`💚 Health check: http://localhost:${PORT}/api/health`);
 });
 
-// Start the bot after server is running
+// Start the bot
 startBot().catch(error => {
   console.error('❌ Bot startup error:', error.message);
-  console.log('⚠️  Server is running but bot failed to start.');
-  console.log('   Check your BOT_TOKEN in .env file');
 });
 
-// ==================== EXPORTS ====================
 module.exports = { app };
