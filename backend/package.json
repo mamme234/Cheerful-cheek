@@ -1,7 +1,7 @@
 {
   "name": "telegram-miniapp-backend",
   "version": "1.0.0",
-  "description": "Pay-per-view media bot",
+  "description": "Admin approval payment system",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
@@ -10,8 +10,6 @@
     "express": "^4.18.2",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
-    "telegraf": "^4.15.3",
-    "@paypal/checkout-server-sdk": "^1.0.3",
-    "uuid": "^9.0.0"
+    "telegraf": "^4.15.3"
   }
 }
