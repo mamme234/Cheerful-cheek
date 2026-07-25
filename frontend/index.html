@@ -2,78 +2,155 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Premium Gallery - Admin Approval</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f0f1a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>Premium Gallery</title>
     <link rel="stylesheet" href="style.css" />
 </head>
 <body>
     <div id="app">
-        <header class="header">
+        <!-- Telegram Header -->
+        <header class="tg-header" id="mainHeader">
             <div class="header-content">
-                <h1>📸 Premium Gallery</h1>
-                <div class="user-info">
-                    <span id="userName">Loading...</span>
-                    <span id="purchaseCount" class="purchase-badge">🛒 0</span>
+                <div class="header-left">
+                    <button class="back-btn" id="backBtn" aria-label="Back">‹</button>
+                    <h1>Premium Gallery</h1>
+                </div>
+                <div class="header-right">
+                    <button class="user-btn" id="userBtn" aria-label="User">
+                        <span id="userAvatar">👤</span>
+                    </button>
                 </div>
             </div>
         </header>
 
-        <!-- Status messages -->
-        <div id="statusMessage" class="status-message" style="display:none;"></div>
-
-        <!-- Filters -->
-        <div class="filters">
-            <button class="filter-btn active" data-filter="all">All</button>
-            <button class="filter-btn" data-filter="photo">📷 Photos</button>
-            <button class="filter-btn" data-filter="video">🎬 Videos</button>
-            <button class="filter-btn" data-filter="purchased">✅ My Purchases</button>
-            <button class="filter-btn" data-filter="pending">⏳ Pending</button>
+        <!-- Stats Banner -->
+        <div class="stats-banner" id="statsBanner">
+            <div class="stat-item">
+                <span class="stat-icon">📸</span>
+                <div>
+                    <span class="stat-value" id="mediaCount">0</span>
+                    <span class="stat-label">Media</span>
+                </div>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+                <span class="stat-icon">🛒</span>
+                <div>
+                    <span class="stat-value" id="purchaseCount">0</span>
+                    <span class="stat-label">Owned</span>
+                </div>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+                <span class="stat-icon">⏳</span>
+                <div>
+                    <span class="stat-value" id="pendingCount">0</span>
+                    <span class="stat-label">Pending</span>
+                </div>
+            </div>
         </div>
 
-        <!-- Gallery -->
-        <div id="gallery" class="gallery">
-            <div class="loading">Loading media...</div>
+        <!-- Search & Filter -->
+        <div class="search-filter">
+            <div class="search-box">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="searchInput" placeholder="Search content..." />
+            </div>
+            <div class="filter-scroll">
+                <button class="filter-chip active" data-filter="all">All</button>
+                <button class="filter-chip" data-filter="photo">📷 Photos</button>
+                <button class="filter-chip" data-filter="video">🎬 Videos</button>
+                <button class="filter-chip" data-filter="purchased">✅ Owned</button>
+                <button class="filter-chip" data-filter="pending">⏳ Pending</button>
+            </div>
         </div>
 
-        <!-- PayPal Info Modal -->
-        <div id="paypalModal" class="modal" style="display:none;">
-            <div class="modal-content" style="max-width:500px; padding:30px;">
-                <span class="close-btn" onclick="closePaypalModal()">&times;</span>
-                <div style="text-align:center;">
-                    <div style="font-size:48px; margin-bottom:20px;">💳</div>
-                    <h2>Complete Your Payment</h2>
-                    <p style="color:#a8a8b3; margin:15px 0;">
-                        Send payment to the admin's PayPal account:
-                    </p>
-                    <div style="background:#1a1a2e; padding:20px; border-radius:12px; margin:20px 0;">
-                        <p style="font-size:20px; font-weight:600;" id="paypalEmail">admin@paypal.com</p>
-                        <p style="color:#6c6c7a; font-size:14px;">Amount: $<span id="paymentAmount">5.00</span></p>
+        <!-- Media Grid -->
+        <div id="mediaGrid" class="media-grid">
+            <!-- Cards rendered by JS -->
+        </div>
+
+        <!-- Bottom Navigation -->
+        <nav class="bottom-nav" id="bottomNav">
+            <button class="nav-item active" data-tab="gallery">
+                <span class="nav-icon">🏠</span>
+                <span class="nav-label">Gallery</span>
+            </button>
+            <button class="nav-item" data-tab="owned" id="navOwned">
+                <span class="nav-icon">✅</span>
+                <span class="nav-label">My Content</span>
+                <span class="nav-badge" id="navBadge">0</span>
+            </button>
+            <button class="nav-item" data-tab="profile">
+                <span class="nav-icon">👤</span>
+                <span class="nav-label">Profile</span>
+            </button>
+        </nav>
+
+        <!-- Purchase Modal -->
+        <div id="purchaseModal" class="modal-overlay" style="display:none;">
+            <div class="modal-container tg-modal">
+                <div class="modal-header">
+                    <h2>🔓 Unlock Content</h2>
+                    <button class="modal-close" onclick="closePurchaseModal()">✕</button>
+                </div>
+                <div class="modal-body">
+                    <div class="modal-preview" id="modalPreview"></div>
+                    <div class="modal-info">
+                        <h3 id="modalTitle">Content Title</h3>
+                        <p id="modalDescription">Description goes here</p>
+                        <div class="modal-price">
+                            <span class="price-amount">$<span id="modalPrice">5.00</span></span>
+                            <span class="price-label">One-time payment</span>
+                        </div>
                     </div>
-                    <a id="paypalLink" href="#" target="_blank" class="btn-pay" style="display:inline-block; text-decoration:none;">
-                        💰 Pay with PayPal
-                    </a>
-                    <p style="color:#6c6c7a; font-size:13px; margin-top:15px;">
-                        After payment, admin will approve your purchase.<br>
-                        You'll be notified in the bot.
-                    </p>
-                    <button onclick="closePaypalModal()" class="btn-secondary" style="margin-top:10px;">
-                        I've sent the payment
-                    </button>
+                    <div class="modal-divider"></div>
+                    <div class="payment-section">
+                        <div class="payment-method">
+                            <div class="method-icon">💳</div>
+                            <div>
+                                <p class="method-name">PayPal</p>
+                                <p class="method-detail" id="modalPaypalEmail">admin@paypal.com</p>
+                            </div>
+                        </div>
+                        <button class="btn-primary btn-pay" onclick="confirmPayment()">
+                            <span>💰</span> Pay Now
+                        </button>
+                        <p class="payment-note">After payment, admin will approve your purchase</p>
+                    </div>
                 </div>
             </div>
         </div>
 
         <!-- View Modal -->
-        <div id="viewModal" class="modal" style="display:none;">
-            <div class="modal-content" style="max-width:90%;">
-                <span class="close-btn" onclick="closeViewModal()">&times;</span>
-                <div id="viewBody"></div>
+        <div id="viewModal" class="modal-overlay" style="display:none;">
+            <div class="modal-container fullscreen-modal">
+                <div class="view-header">
+                    <button class="view-close" onclick="closeViewModal()">✕</button>
+                    <span id="viewTitle">Content</span>
+                </div>
+                <div id="viewContent" class="view-content"></div>
+                <div class="view-footer">
+                    <span id="viewCaption">Caption</span>
+                    <span id="viewDate">Date</span>
+                </div>
             </div>
         </div>
 
-        <footer class="footer">
-            <p>© 2026 Premium Gallery • Admin Approval System</p>
-        </footer>
+        <!-- Toast -->
+        <div id="toast" class="toast" style="display:none;">
+            <span id="toastIcon">📢</span>
+            <span id="toastMessage">Message</span>
+        </div>
+
+        <!-- Loading Overlay -->
+        <div id="loadingOverlay" class="loading-overlay" style="display:none;">
+            <div class="loading-spinner"></div>
+            <p>Loading...</p>
+        </div>
     </div>
 
     <script src="app.js"></script>
