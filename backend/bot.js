@@ -1,8 +1,16 @@
-const { Telegraf, Markup } = require('telegraf');
+const { Telegraf } = require('telegraf');
 const fs = require('fs');
 const path = require('path');
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
+
+// Check if token exists
+if (!BOT_TOKEN) {
+    console.error('❌ BOT_TOKEN is not set in .env file!');
+    console.error('Please add: BOT_TOKEN=your_telegram_bot_token');
+    process.exit(1);
+}
+
 const ADMIN_ID = parseInt(process.env.ADMIN_ID);
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || '@admin';
 const ADMIN_PAYPAL_LINK = process.env.ADMIN_PAYPAL_LINK || 'https://paypal.me/yourusername';
@@ -12,21 +20,37 @@ const USERS_DB_PATH = path.join(__dirname, 'database', 'users.json');
 const PENDING_DB_PATH = path.join(__dirname, 'database', 'pending.json');
 const PURCHASES_DB_PATH = path.join(__dirname, 'database', 'purchases.json');
 
+// Initialize bot with error handling
 const bot = new Telegraf(BOT_TOKEN);
 
 // Database helpers
 const readDB = (filePath) => {
   try {
+    if (!fs.existsSync(filePath)) {
+      // Create empty file if it doesn't exist
+      const initialData = filePath.includes('media') ? [] : {};
+      fs.writeFileSync(filePath, JSON.stringify(initialData, null, 2));
+      return initialData;
+    }
     const data = fs.readFileSync(filePath, 'utf8');
     return JSON.parse(data);
   } catch (error) {
-    return filePath.includes('media') ? [] : 
-           filePath.includes('pending') ? [] : {};
+    console.error(`Error reading ${filePath}:`, error);
+    return filePath.includes('media') ? [] : {};
   }
 };
 
 const writeDB = (filePath, data) => {
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+  try {
+    // Ensure directory exists
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+  } catch (error) {
+    console.error(`Error writing ${filePath}:`, error);
+  }
 };
 
 // Check if user has purchased specific media
@@ -99,7 +123,7 @@ bot.on('photo', async (ctx) => {
     );
   } catch (error) {
     console.error('Upload error:', error);
-    ctx.reply('❌ Failed to upload.');
+    ctx.reply('❌ Failed to upload. Please try again.');
   }
 });
 
@@ -148,7 +172,7 @@ bot.on('video', async (ctx) => {
     );
   } catch (error) {
     console.error('Upload error:', error);
-    ctx.reply('❌ Failed to upload.');
+    ctx.reply('❌ Failed to upload. Please try again.');
   }
 });
 
@@ -399,7 +423,40 @@ bot.action('my_pending', async (ctx) => {
   ctx.reply(message);
 });
 
-bot.launch();
-console.log('🤖 Bot is running...');
+// ==================== START BOT WITH ERROR HANDLING ====================
 
-module.exports = { bot, readDB, writeDB, hasPurchased, MEDIA_DB_PATH, USERS_DB_PATH, PENDING_DB_PATH, PURCHASES_DB_PATH, ADMIN_ID };
+async function startBot() {
+  try {
+    // Test the bot token first
+    const me = await bot.telegram.getMe();
+    console.log(`🤖 Bot connected: @${me.username}`);
+    console.log(`📌 Bot ID: ${me.id}`);
+    
+    // Start bot
+    await bot.launch();
+    console.log('✅ Bot is running successfully!');
+    
+  } catch (error) {
+    console.error('❌ Failed to start bot:', error.message);
+    console.error('Please check your BOT_TOKEN in .env file');
+    console.error('Get a new token from @BotFather on Telegram');
+    process.exit(1);
+  }
+}
+
+// Graceful stop
+process.once('SIGINT', () => bot.stop('SIGINT'));
+process.once('SIGTERM', () => bot.stop('SIGTERM'));
+
+module.exports = { 
+  bot, 
+  readDB, 
+  writeDB, 
+  hasPurchased, 
+  MEDIA_DB_PATH, 
+  USERS_DB_PATH, 
+  PENDING_DB_PATH, 
+  PURCHASES_DB_PATH, 
+  ADMIN_ID,
+  startBot
+};
