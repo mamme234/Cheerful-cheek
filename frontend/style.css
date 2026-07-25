@@ -1,0 +1,216 @@
+/* Reset & Base */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #1a1a2e;
+    color: #ffffff;
+    min-height: 100vh;
+}
+
+/* Header */
+.header {
+    background: linear-gradient(135deg, #16213e, #0f3460);
+    padding: 20px 0;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.header-content {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.header h1 {
+    font-size: 24px;
+    font-weight: 700;
+    background: linear-gradient(90deg, #e94560, #ff6b6b);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.user-info {
+    font-size: 14px;
+    color: #a8a8b3;
+    background: rgba(255,255,255,0.1);
+    padding: 6px 12px;
+    border-radius: 20px;
+}
+
+/* Container */
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Payment Banner */
+.payment-banner {
+    background: linear-gradient(135deg, #e94560, #c23152);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    margin-bottom: 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 15px;
+    box-shadow: 0 4px 15px rgba(233, 69, 96, 0.3);
+}
+
+.payment-banner p {
+    font-size: 18px;
+    font-weight: 500;
+    flex: 1;
+}
+
+.btn-pay {
+    background: #ffffff;
+    color: #e94560;
+    border: none;
+    padding: 12px 30px;
+    border-radius: 25px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-pay:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 20px rgba(255,255,255,0.3);
+}
+
+/* Gallery Grid */
+.gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 25px;
+    padding: 10px 0;
+}
+
+.loading {
+    text-align: center;
+    padding: 60px 20px;
+    color: #a8a8b3;
+    font-size: 18px;
+    grid-column: 1 / -1;
+}
+
+/* Media Cards */
+.media-card {
+    background: #16213e;
+    border-radius: 12px;
+    overflow: hidden;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
+.media-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+}
+
+.media-card .media-content {
+    width: 100%;
+    aspect-ratio: 16/9;
+    object-fit: cover;
+    background: #0f0f1a;
+}
+
+.media-card video.media-content {
+    background: #000;
+}
+
+.media-card .media-info {
+    padding: 15px;
+}
+
+.media-card .media-caption {
+    font-size: 14px;
+    color: #d4d4e0;
+    margin-bottom: 5px;
+}
+
+.media-card .media-date {
+    font-size: 12px;
+    color: #6c6c7a;
+}
+
+.media-card .media-type {
+    display: inline-block;
+    background: #e94560;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+}
+
+/* Footer */
+.footer {
+    text-align: center;
+    padding: 30px 20px;
+    color: #6c6c7a;
+    font-size: 14px;
+    border-top: 1px solid #16213e;
+    margin-top: 40px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .header h1 {
+        font-size: 20px;
+    }
+    
+    .payment-banner {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .payment-banner p {
+        font-size: 16px;
+    }
+    
+    .btn-pay {
+        width: 100%;
+        padding: 12px;
+    }
+    
+    .gallery {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+}
+
+/* Locked State */
+.media-card.locked {
+    position: relative;
+    opacity: 0.7;
+}
+
+.media-card.locked::after {
+    content: '🔒';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 40px;
+    background: rgba(0,0,0,0.6);
+    padding: 20px;
+    border-radius: 50%;
+      }
