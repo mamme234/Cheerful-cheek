@@ -9,32 +9,51 @@ let currentFilter = 'all';
 let currentSearch = '';
 let currentModalMedia = null;
 let isInitialized = false;
+let userData = {};
 
 // ==================== INITIALIZATION ====================
 function init() {
     if (isInitialized) return;
     isInitialized = true;
     
-    // Telegram WebApp
     if (tg) {
         tg.ready();
         tg.expand();
         const user = tg.initDataUnsafe?.user;
         if (user) {
             userId = user.id;
-            const avatar = document.getElementById('userAvatar');
-            if (avatar) avatar.textContent = user.first_name?.charAt(0).toUpperCase() || '👤';
+            userData = {
+                name: user.first_name || 'User',
+                username: user.username || 'user',
+                id: user.id
+            };
+            updateProfileUI();
         }
     } else {
         userId = 'test_user_' + Date.now();
+        userData = {
+            name: 'Test User',
+            username: 'testuser',
+            id: userId
+        };
+        updateProfileUI();
     }
     
     console.log('✅ Mini App initialized');
     console.log('📡 Backend:', BACKEND_URL);
-    console.log('👤 User ID:', userId);
+    console.log('👤 User:', userId);
     
     setupEventListeners();
     loadApp();
+}
+
+// ==================== UPDATE PROFILE UI ====================
+function updateProfileUI() {
+    document.getElementById('profileAvatar').textContent = userData.name.charAt(0).toUpperCase();
+    document.getElementById('profileName').textContent = userData.name;
+    document.getElementById('profileUsername').textContent = '@' + userData.username;
+    document.getElementById('userAvatar').textContent = userData.name.charAt(0).toUpperCase();
+    document.getElementById('profilePaypalEmail').textContent = window.ADMIN_PAYPAL_EMAIL || 'admin@paypal.com';
 }
 
 // ==================== EVENT LISTENERS ====================
@@ -61,25 +80,30 @@ function setupEventListeners() {
         });
     });
     
-    // Bottom nav
+    // Bottom navigation - Switch between Gallery and Profile
     document.querySelectorAll('.nav-item').forEach(item => {
         item.addEventListener('click', function() {
             document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
             this.classList.add('active');
+            
             const tab = this.dataset.tab;
             
-            if (tab === 'owned') {
-                currentFilter = 'purchased';
-                document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
-                document.querySelector('.filter-chip[data-filter="purchased"]')?.classList.add('active');
-                applyFilters();
-            } else if (tab === 'profile') {
-                showToast('👤 Profile coming soon', 'info');
+            if (tab === 'profile') {
+                // Show profile, hide gallery
+                document.getElementById('gallerySection').classList.remove('active');
+                document.getElementById('profileSection').classList.add('active');
+                document.getElementById('pageTitle').textContent = 'Profile';
+                document.getElementById('statsBanner').style.display = 'none';
+                document.getElementById('searchInput').parentElement.parentElement.style.display = 'none';
+                loadProfileData();
             } else {
-                currentFilter = 'all';
-                document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
-                document.querySelector('.filter-chip[data-filter="all"]')?.classList.add('active');
-                applyFilters();
+                // Show gallery, hide profile
+                document.getElementById('gallerySection').classList.add('active');
+                document.getElementById('profileSection').classList.remove('active');
+                document.getElementById('pageTitle').textContent = 'Premium Gallery';
+                document.getElementById('statsBanner').style.display = 'flex';
+                document.getElementById('searchInput').parentElement.parentElement.style.display = 'flex';
+                // Reset filters if needed
             }
         });
     });
@@ -121,19 +145,10 @@ async function loadApp() {
     try {
         await loadMedia();
         await updateStats();
+        await loadProfileData();
     } catch (error) {
         console.error('Error loading app:', error);
         showToast('Failed to load content', 'error');
-        document.getElementById('mediaGrid').innerHTML = `
-            <div class="empty-state">
-                <div class="empty-icon">⚠️</div>
-                <h3>Failed to Load Content</h3>
-                <p>${error.message || 'Please try again'}</p>
-                <button onclick="location.reload()" style="margin-top:16px; padding:10px 30px; background:#e94560; border:none; border-radius:12px; color:white; font-weight:600; cursor:pointer;">
-                    🔄 Retry
-                </button>
-            </div>
-        `;
     } finally {
         showLoading(false);
     }
@@ -141,25 +156,17 @@ async function loadApp() {
 
 async function loadMedia() {
     try {
-        const url = `${BACKEND_URL}/api/media?userId=${userId}`;
-        console.log('📡 Fetching:', url);
-        
-        const response = await fetch(url);
-        console.log('📡 Response status:', response.status);
-        
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const response = await fetch(`${BACKEND_URL}/api/media?userId=${userId}`);
         const result = await response.json();
-        console.log('📦 Data:', result);
         
         if (result.success) {
             allMedia = result.data || [];
-            console.log(`✅ Loaded ${allMedia.length} media items`);
             renderGallery(allMedia);
         } else {
             throw new Error(result.error || 'Failed to load media');
         }
     } catch (error) {
-        console.error('❌ Load media error:', error);
+        console.error('Load media error:', error);
         throw error;
     }
 }
@@ -187,6 +194,59 @@ async function updateStats() {
     }
 }
 
+// ==================== PROFILE DATA ====================
+async function loadProfileData() {
+    try {
+        // Get purchases
+        const purchaseRes = await fetch(`${BACKEND_URL}/api/my-purchases/${userId}`);
+        const purchaseData = await purchaseRes.json();
+        
+        // Get pending
+        const pendingRes = await fetch(`${BACKEND_URL}/api/my-pending/${userId}`);
+        const pendingData = await pendingRes.json();
+        
+        // Update profile stats
+        const totalMedia = allMedia.length || 0;
+        const purchasedCount = purchaseData.success ? purchaseData.count : 0;
+        const pendingCount = pendingData.success ? pendingData.count : 0;
+        
+        document.getElementById('profileTotalMedia').textContent = totalMedia;
+        document.getElementById('profilePurchased').textContent = purchasedCount;
+        document.getElementById('profilePending').textContent = pendingCount;
+        
+        // Update purchase history
+        renderPurchaseHistory(purchaseData.success ? purchaseData.data : []);
+        
+    } catch (error) {
+        console.error('Profile data error:', error);
+    }
+}
+
+function renderPurchaseHistory(purchases) {
+    const container = document.getElementById('purchaseHistoryList');
+    
+    if (!purchases || purchases.length === 0) {
+        container.innerHTML = `
+            <div style="text-align:center; padding:20px; color:var(--tg-text-secondary);">
+                🛒 No purchases yet
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = purchases.map(item => `
+        <div class="purchase-item">
+            <div class="item-icon">${item.type === 'video' ? '🎬' : '📷'}</div>
+            <div class="item-details">
+                <div class="item-title">${item.title || 'Untitled'}</div>
+                <div class="item-meta">${item.description || 'No description'}</div>
+            </div>
+            <div class="item-price">$${item.price || 0}</div>
+            <span class="item-status approved">✅ Approved</span>
+        </div>
+    `).join('');
+}
+
 // ==================== RENDER GALLERY ====================
 function renderGallery(media) {
     const grid = document.getElementById('mediaGrid');
@@ -197,9 +257,6 @@ function renderGallery(media) {
                 <div class="empty-icon">📭</div>
                 <h3>No Content Available</h3>
                 <p>Check back later for new uploads</p>
-                <div style="margin-top:12px; font-size:12px; color:var(--tg-text-muted); background:var(--tg-surface-2); padding:12px; border-radius:12px;">
-                    💡 Admin: Send /upload in the bot to add content
-                </div>
             </div>
         `;
         return;
@@ -244,7 +301,7 @@ function renderGallery(media) {
         `;
         
         return `
-            <div class="media-card" style="animation-delay: ${index * 0.05}s" data-id="${item.id}" data-type="${item.type}">
+            <div class="media-card" style="animation-delay: ${index * 0.05}s">
                 <div class="media-wrapper">
                     ${previewContent}
                     ${badgeHTML}
@@ -278,6 +335,9 @@ function applyFilters() {
         filtered = filtered.filter(m => m.type === 'video');
     } else if (currentFilter === 'purchased') {
         filtered = filtered.filter(m => m.isPurchased);
+    } else if (currentFilter === 'pending') {
+        // Show items that are pending (will be filtered by API)
+        filtered = filtered.filter(m => m.isPending || false);
     }
     
     renderGallery(filtered);
@@ -294,6 +354,7 @@ async function openPurchaseModal(mediaId) {
     currentModalMedia = media;
     
     try {
+        // Check if already pending
         const response = await fetch(`${BACKEND_URL}/api/pending-status/${userId}/${mediaId}`);
         const result = await response.json();
         if (result.isPending) {
@@ -333,8 +394,8 @@ function closePurchaseModal() {
     if (video) video.pause();
 }
 
-// ==================== CONFIRM PAYMENT ====================
-async function confirmPayment() {
+// ==================== REQUEST PURCHASE ====================
+async function requestPurchase() {
     if (!currentModalMedia) return;
     
     const mediaId = currentModalMedia.id;
@@ -354,20 +415,21 @@ async function confirmPayment() {
         
         if (result.success) {
             closePurchaseModal();
-            showToast('✅ Purchase request sent! Waiting for approval.', 'success');
+            showToast('✅ Request sent! Admin will approve after payment.', 'success');
             setTimeout(() => {
                 loadMedia();
                 updateStats();
+                loadProfileData();
             }, 1500);
         } else {
             showToast(result.error || 'Failed to request purchase', 'error');
         }
     } catch (error) {
-        console.error('Payment error:', error);
+        console.error('Request error:', error);
         showToast('Network error. Please try again.', 'error');
     } finally {
         btn.disabled = false;
-        btn.innerHTML = '<span>💰</span> Pay Now';
+        btn.innerHTML = '<span>💰</span> I\'ve Sent Payment';
     }
 }
 
@@ -464,12 +526,13 @@ document.addEventListener('visibilitychange', () => {
     if (!document.hidden && isInitialized) {
         loadMedia();
         updateStats();
+        loadProfileData();
     }
 });
 
 // ==================== EXPOSE GLOBALLY ====================
 window.openPurchaseModal = openPurchaseModal;
 window.closePurchaseModal = closePurchaseModal;
-window.confirmPayment = confirmPayment;
+window.requestPurchase = requestPurchase;
 window.viewMedia = viewMedia;
 window.closeViewModal = closeViewModal;
