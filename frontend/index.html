@@ -3,41 +3,79 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Media Gallery - Mini App</title>
+    <title>Premium Gallery - Admin Approval</title>
     <link rel="stylesheet" href="style.css" />
 </head>
 <body>
     <div id="app">
-        <!-- Header -->
         <header class="header">
             <div class="header-content">
-                <h1>📸 Media Gallery</h1>
-                <span id="userInfo" class="user-info">Loading...</span>
+                <h1>📸 Premium Gallery</h1>
+                <div class="user-info">
+                    <span id="userName">Loading...</span>
+                    <span id="purchaseCount" class="purchase-badge">🛒 0</span>
+                </div>
             </div>
         </header>
 
-        <!-- Main Content -->
-        <main class="container">
-            <!-- Payment/Subscription Banner -->
-            <div id="paymentBanner" class="payment-banner">
-                <p>🎬 Unlock full access to all premium content!</p>
-                <button onclick="handlePayment()" class="btn-pay">
-                    Pay with PayPal
-                </button>
-            </div>
+        <!-- Status messages -->
+        <div id="statusMessage" class="status-message" style="display:none;"></div>
 
-            <!-- Media Gallery -->
-            <div id="gallery" class="gallery">
-                <div class="loading">Loading media...</div>
-            </div>
-        </main>
+        <!-- Filters -->
+        <div class="filters">
+            <button class="filter-btn active" data-filter="all">All</button>
+            <button class="filter-btn" data-filter="photo">📷 Photos</button>
+            <button class="filter-btn" data-filter="video">🎬 Videos</button>
+            <button class="filter-btn" data-filter="purchased">✅ My Purchases</button>
+            <button class="filter-btn" data-filter="pending">⏳ Pending</button>
+        </div>
 
-        <!-- Footer -->
+        <!-- Gallery -->
+        <div id="gallery" class="gallery">
+            <div class="loading">Loading media...</div>
+        </div>
+
+        <!-- PayPal Info Modal -->
+        <div id="paypalModal" class="modal" style="display:none;">
+            <div class="modal-content" style="max-width:500px; padding:30px;">
+                <span class="close-btn" onclick="closePaypalModal()">&times;</span>
+                <div style="text-align:center;">
+                    <div style="font-size:48px; margin-bottom:20px;">💳</div>
+                    <h2>Complete Your Payment</h2>
+                    <p style="color:#a8a8b3; margin:15px 0;">
+                        Send payment to the admin's PayPal account:
+                    </p>
+                    <div style="background:#1a1a2e; padding:20px; border-radius:12px; margin:20px 0;">
+                        <p style="font-size:20px; font-weight:600;" id="paypalEmail">admin@paypal.com</p>
+                        <p style="color:#6c6c7a; font-size:14px;">Amount: $<span id="paymentAmount">5.00</span></p>
+                    </div>
+                    <a id="paypalLink" href="#" target="_blank" class="btn-pay" style="display:inline-block; text-decoration:none;">
+                        💰 Pay with PayPal
+                    </a>
+                    <p style="color:#6c6c7a; font-size:13px; margin-top:15px;">
+                        After payment, admin will approve your purchase.<br>
+                        You'll be notified in the bot.
+                    </p>
+                    <button onclick="closePaypalModal()" class="btn-secondary" style="margin-top:10px;">
+                        I've sent the payment
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- View Modal -->
+        <div id="viewModal" class="modal" style="display:none;">
+            <div class="modal-content" style="max-width:90%;">
+                <span class="close-btn" onclick="closeViewModal()">&times;</span>
+                <div id="viewBody"></div>
+            </div>
+        </div>
+
         <footer class="footer">
-            <p>© 2026 Media Gallery • Powered by Telegram Mini App</p>
+            <p>© 2026 Premium Gallery • Admin Approval System</p>
         </footer>
     </div>
 
     <script src="app.js"></script>
 </body>
-</html>
+    </html>
