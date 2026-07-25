@@ -4,176 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#0f0f1a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Premium Gallery</title>
-    <style>
-        /* ==================== ALL CSS FROM BEFORE ==================== */
-        /* Keep all the existing styles */
-        
-        /* ==================== PROFILE DASHBOARD ==================== */
-        .profile-dashboard {
-            display: none;
-            padding: 16px;
-            flex: 1;
-            overflow-y: auto;
-        }
-        
-        .profile-dashboard.active {
-            display: block;
-        }
-        
-        .profile-header {
-            text-align: center;
-            padding: 20px 0;
-            border-bottom: 1px solid var(--tg-border);
-        }
-        
-        .profile-avatar {
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            background: var(--tg-primary);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 36px;
-            margin: 0 auto 12px;
-            box-shadow: 0 4px 20px rgba(233, 69, 96, 0.3);
-        }
-        
-        .profile-name {
-            font-size: 20px;
-            font-weight: 700;
-        }
-        
-        .profile-username {
-            font-size: 14px;
-            color: var(--tg-text-secondary);
-        }
-        
-        .profile-stats-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 12px;
-            margin: 16px 0;
-        }
-        
-        .profile-stat-card {
-            background: var(--tg-surface);
-            border: 1px solid var(--tg-border);
-            border-radius: var(--tg-radius-sm);
-            padding: 16px;
-            text-align: center;
-        }
-        
-        .profile-stat-card .stat-number {
-            font-size: 24px;
-            font-weight: 700;
-            display: block;
-        }
-        
-        .profile-stat-card .stat-label {
-            font-size: 12px;
-            color: var(--tg-text-secondary);
-            margin-top: 4px;
-        }
-        
-        .profile-stat-card.purchased .stat-number { color: var(--tg-success); }
-        .profile-stat-card.pending .stat-number { color: var(--tg-warning); }
-        .profile-stat-card.total .stat-number { color: var(--tg-primary); }
-
-        /* Purchase History */
-        .purchase-history {
-            margin-top: 16px;
-        }
-        
-        .purchase-history h3 {
-            font-size: 16px;
-            font-weight: 600;
-            margin-bottom: 12px;
-        }
-        
-        .purchase-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            background: var(--tg-surface);
-            border: 1px solid var(--tg-border);
-            border-radius: var(--tg-radius-sm);
-            padding: 12px;
-            margin-bottom: 8px;
-        }
-        
-        .purchase-item .item-icon {
-            font-size: 28px;
-        }
-        
-        .purchase-item .item-details {
-            flex: 1;
-        }
-        
-        .purchase-item .item-title {
-            font-weight: 600;
-            font-size: 14px;
-        }
-        
-        .purchase-item .item-meta {
-            font-size: 12px;
-            color: var(--tg-text-secondary);
-        }
-        
-        .purchase-item .item-status {
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: 600;
-        }
-        
-        .purchase-item .item-status.approved {
-            background: var(--tg-success);
-            color: white;
-        }
-        
-        .purchase-item .item-status.pending {
-            background: var(--tg-warning);
-            color: #2d3436;
-        }
-        
-        .purchase-item .item-status.rejected {
-            background: var(--tg-primary);
-            color: white;
-        }
-        
-        .purchase-item .item-price {
-            font-weight: 700;
-            color: var(--tg-primary);
-        }
-
-        /* Content sections */
-        .content-section {
-            display: none;
-        }
-        
-        .content-section.active {
-            display: block;
-        }
-        
-        /* Gallery grid */
-        .media-grid {
-            flex: 1;
-            overflow-y: auto;
-            overflow-x: hidden;
-            padding: 12px 16px 80px;
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 12px;
-            align-content: start;
-            -webkit-overflow-scrolling: touch;
-        }
-        
-        .media-grid.gallery-active {
-            display: grid;
-        }
-    </style>
+    <link rel="stylesheet" href="style.css" />
 </head>
 <body>
     <div id="app">
@@ -181,11 +15,11 @@
         <header class="tg-header">
             <div class="header-content">
                 <div class="header-left">
-                    <button class="back-btn" id="backBtn">‹</button>
+                    <button class="back-btn" id="backBtn" aria-label="Back">‹</button>
                     <h1 id="pageTitle">Premium Gallery</h1>
                 </div>
                 <div class="header-right">
-                    <button class="user-btn" id="userBtn">
+                    <button class="user-btn" id="userBtn" aria-label="User">
                         <span id="userAvatar">👤</span>
                     </button>
                 </div>
@@ -283,13 +117,9 @@
             </div>
 
             <!-- Admin PayPal Info -->
-            <div style="margin-top:16px; padding:16px; background:var(--tg-surface); border:1px solid var(--tg-border); border-radius:var(--tg-radius-sm);">
-                <p style="font-size:13px; color:var(--tg-text-secondary);">
-                    💳 PayPal: <strong id="profilePaypalEmail">admin@paypal.com</strong>
-                </p>
-                <p style="font-size:12px; color:var(--tg-text-muted); margin-top:4px;">
-                    Send payment to this email for manual approval
-                </p>
+            <div class="paypal-info-box">
+                <p class="paypal-info-label">💳 PayPal: <strong id="profilePaypalEmail">admin@paypal.com</strong></p>
+                <p class="paypal-info-note">Send payment to this email for manual approval</p>
             </div>
         </div>
 
@@ -371,4 +201,4 @@
 
     <script src="app.js"></script>
 </body>
-                    </html>
+    </html>
