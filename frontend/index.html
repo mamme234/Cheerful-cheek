@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Media Gallery - Mini App</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1>📸 Media Gallery</h1>
+                <span id="userInfo" class="user-info">Loading...</span>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="container">
+            <!-- Payment/Subscription Banner -->
+            <div id="paymentBanner" class="payment-banner">
+                <p>🎬 Unlock full access to all premium content!</p>
+                <button onclick="handlePayment()" class="btn-pay">
+                    Pay with PayPal
+                </button>
+            </div>
+
+            <!-- Media Gallery -->
+            <div id="gallery" class="gallery">
+                <div class="loading">Loading media...</div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>© 2026 Media Gallery • Powered by Telegram Mini App</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
