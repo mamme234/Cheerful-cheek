@@ -62,6 +62,7 @@ class CheerfulChickApp {
             max-width: 90%;
             text-align: center;
             box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            animation: fadeIn 0.3s ease;
         `;
         errorDiv.textContent = message;
         document.body.appendChild(errorDiv);
@@ -84,6 +85,7 @@ class CheerfulChickApp {
             max-width: 90%;
             text-align: center;
             box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            animation: fadeIn 0.3s ease;
         `;
         successDiv.textContent = message;
         document.body.appendChild(successDiv);
@@ -95,8 +97,15 @@ class CheerfulChickApp {
             const userData = await this.getTelegramUser();
             if (userData) {
                 this.currentUser = userData;
+                
+                // Update profile with Telegram data
                 document.getElementById('displayName').textContent = userData.first_name || 'User';
                 document.getElementById('username').textContent = `@${userData.username || 'username'}`;
+                
+                // Set profile photo if available
+                if (userData.photo_url) {
+                    document.getElementById('profileAvatar').src = userData.photo_url;
+                }
                 
                 // Register user with backend
                 await this.registerUser(userData);
@@ -114,29 +123,74 @@ class CheerfulChickApp {
 
     getTelegramUser() {
         return new Promise((resolve) => {
+            // Check if running in Telegram WebApp
             if (window.Telegram && window.Telegram.WebApp) {
                 const user = window.Telegram.WebApp.initDataUnsafe.user;
                 if (user) {
+                    console.log('👤 Telegram user loaded:', user.first_name);
                     resolve(user);
                 } else {
                     this.showError('Please open this app from Telegram');
                     resolve(null);
                 }
             } else {
-                // For testing without Telegram
-                const testUser = prompt('Enter your Telegram ID (for testing):', '123456');
-                if (testUser) {
-                    resolve({
-                        id: parseInt(testUser),
-                        first_name: 'Test User',
-                        username: 'testuser',
-                        registeredAt: Date.now()
-                    });
-                } else {
-                    resolve(null);
-                }
+                // Fallback for development - use Telegram login widget
+                this.showTelegramLogin();
+                resolve(null);
             }
         });
+    }
+
+    showTelegramLogin() {
+        // Create login overlay
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 99999;
+            flex-direction: column;
+            padding: 20px;
+        `;
+        
+        overlay.innerHTML = `
+            <div style="text-align:center;max-width:400px;">
+                <img src="background.png" alt="Logo" style="width:80px;height:80px;border-radius:20px;margin-bottom:20px;border:3px solid #d4af37;">
+                <h2 style="color:#d4af37;margin-bottom:10px;">Cheerful Chick</h2>
+                <p style="color:#888;margin-bottom:30px;">Please login with Telegram to continue</p>
+                <div id="telegram-login-btn" style="display:inline-block;"></div>
+                <p style="color:#666;font-size:12px;margin-top:20px;">This app requires Telegram authentication</p>
+            </div>
+        `;
+        
+        document.body.appendChild(overlay);
+        
+        // Load Telegram login widget
+        const script = document.createElement('script');
+        script.src = 'https://telegram.org/js/telegram-widget.js?22';
+        script.setAttribute('data-telegram-login', 'cheerfulchick_bot');
+        script.setAttribute('data-size', 'large');
+        script.setAttribute('data-onauth', 'onTelegramAuth(user)');
+        script.setAttribute('data-request-access', 'write');
+        document.getElementById('telegram-login-btn').appendChild(script);
+        
+        // Make the callback function global
+        window.onTelegramAuth = (user) => {
+            overlay.remove();
+            this.currentUser = user;
+            document.getElementById('displayName').textContent = user.first_name || 'User';
+            document.getElementById('username').textContent = `@${user.username || 'username'}`;
+            this.registerUser(user);
+            this.loadUserPurchases(user.id);
+            this.hideSplash();
+            this.loadMediaItems();
+        };
     }
 
     async registerUser(userData) {
@@ -221,7 +275,6 @@ class CheerfulChickApp {
             }
         } catch (error) {
             console.error('Error loading purchases:', error);
-            // Load from localStorage as fallback
             this.loadPurchasesFromStorage();
         }
     }
@@ -265,7 +318,6 @@ class CheerfulChickApp {
             return;
         }
 
-        // Filter by category
         if (category === 'videos') {
             items = items.filter(item => item.type === 'video');
         } else if (category === 'photos') {
@@ -297,7 +349,7 @@ class CheerfulChickApp {
         return `
             <div class="feed-item" data-id="${item.id}">
                 <div class="feed-thumbnail" style="position:relative;">
-                    <img src="${item.thumbnail || 'https://via.placeholder.com/300x200/1a1a1a/666?text=No+Image'}" alt="${item.title}" style="width:100%;height:100%;object-fit:cover;">
+                    <img src="${item.thumbnail || 'https://via.placeholder.com/300x200/1a1a1a/666?text=No+Image'}" alt="${item.title}" style="width:100%;height:100%;object-fit:cover;" onerror="this.src='https://via.placeholder.com/300x200/1a1a1a/666?text=Image+Not+Found'">
                     ${item.duration ? `<span class="video-duration">${item.duration}</span>` : ''}
                     ${isPurchased ? '<span style="position:absolute;top:8px;right:8px;background:#2ecc71;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;">✓ Unlocked</span>' : ''}
                     ${item.isFree || item.price === 0 ? '<span style="position:absolute;top:8px;left:8px;background:#2ecc71;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;">FREE</span>' : ''}
@@ -341,7 +393,6 @@ class CheerfulChickApp {
     async openPayment(item) {
         this.currentItem = item;
         
-        // Check if free
         if (item.isFree || item.price === 0) {
             this.showSuccess('🎉 This content is FREE! Unlocking now...');
             await this.handleFreeContent(item);
@@ -376,7 +427,6 @@ class CheerfulChickApp {
             const data = await response.json();
             
             if (data.success && data.isFree) {
-                // Add to purchases
                 this.purchases.push({
                     itemId: item.id,
                     amount: 0,
@@ -385,7 +435,6 @@ class CheerfulChickApp {
                 });
                 localStorage.setItem('purchases', JSON.stringify(this.purchases));
                 
-                // Mark as purchased
                 item.isPurchased = true;
                 this.renderFeed('all');
                 this.updateStats();
@@ -439,7 +488,6 @@ class CheerfulChickApp {
                 this.showSuccess('✅ Payment submitted! Admin will review within 24 hours.');
                 document.getElementById('paymentModal').classList.add('hidden');
                 
-                // Add to local purchases as pending
                 this.purchases.push({
                     itemId: this.pendingPayment.id,
                     amount: this.pendingPayment.price,
@@ -448,10 +496,7 @@ class CheerfulChickApp {
                 });
                 localStorage.setItem('purchases', JSON.stringify(this.purchases));
                 
-                // Send notification in chat
                 this.addMessage('system', '💳 Payment submitted for approval. You will be notified when approved.');
-                
-                // Start polling for payment status
                 this.pollPaymentStatus(data.paymentId);
             } else {
                 this.showError('❌ Error submitting payment: ' + (data.error || 'Unknown error'));
@@ -468,16 +513,14 @@ class CheerfulChickApp {
 
     async pollPaymentStatus(paymentId) {
         let attempts = 0;
-        const maxAttempts = 120; // 10 minutes
+        const maxAttempts = 120;
         
         const interval = setInterval(async () => {
             attempts++;
             try {
                 const response = await fetch(`${this.API_URL}/api/payments/${paymentId}`);
                 if (!response.ok) {
-                    if (attempts >= maxAttempts) {
-                        clearInterval(interval);
-                    }
+                    if (attempts >= maxAttempts) clearInterval(interval);
                     return;
                 }
                 
@@ -498,9 +541,7 @@ class CheerfulChickApp {
                 }
             } catch (error) {
                 console.error('Error checking payment status:', error);
-                if (attempts >= maxAttempts) {
-                    clearInterval(interval);
-                }
+                if (attempts >= maxAttempts) clearInterval(interval);
             }
         }, 5000);
     }
@@ -509,11 +550,17 @@ class CheerfulChickApp {
         const viewer = document.getElementById('mediaViewer');
         const display = document.getElementById('mediaDisplay');
         
+        // Check if content is purchased or free
+        if (!item.isPurchased && !item.isFree && item.price > 0) {
+            this.showError('❌ Please purchase this content first');
+            return;
+        }
+        
         if (item.type === 'video') {
             display.innerHTML = `
                 <video controls autoplay style="width:100%;max-height:70vh;border-radius:8px;">
                     <source src="${item.url}" type="video/mp4">
-                    Your browser does not support the video tag.
+                    <p style="color:#888;text-align:center;padding:40px;">Your browser does not support the video tag.</p>
                 </video>
                 <div style="margin-top:12px;">
                     <h3>${item.title}</h3>
@@ -522,7 +569,7 @@ class CheerfulChickApp {
             `;
         } else {
             display.innerHTML = `
-                <img src="${item.url || item.thumbnail}" alt="${item.title}" style="width:100%;border-radius:8px;">
+                <img src="${item.url || item.thumbnail}" alt="${item.title}" style="width:100%;border-radius:8px;" onerror="this.src='https://via.placeholder.com/600x400/1a1a1a/666?text=Image+Not+Found'">
                 <div style="margin-top:12px;">
                     <h3>${item.title}</h3>
                     <p style="color:#888;">${item.description || ''}</p>
@@ -552,8 +599,6 @@ class CheerfulChickApp {
         
         this.addMessage('sent', message);
         input.value = '';
-        
-        // Send to backend
         await this.sendToBackend(message);
     }
 
@@ -635,14 +680,12 @@ class CheerfulChickApp {
         document.getElementById('screenshotInput').addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (file) {
-                // Validate file type
                 if (!file.type.startsWith('image/')) {
                     this.showError('Please upload an image file');
                     e.target.value = '';
                     return;
                 }
                 
-                // Validate file size (max 10MB)
                 if (file.size > 10 * 1024 * 1024) {
                     this.showError('File size must be less than 10MB');
                     e.target.value = '';
@@ -763,6 +806,7 @@ class CheerfulChickApp {
             max-width: 90%;
             text-align: center;
             box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            animation: fadeIn 0.3s ease;
         `;
         infoDiv.textContent = message;
         document.body.appendChild(infoDiv);
