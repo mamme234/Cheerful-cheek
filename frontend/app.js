@@ -13,6 +13,10 @@ let userData = {};
 let selectedScreenshot = null;
 let pendingMediaId = null;
 
+// ==================== ADMIN PAYPAL ====================
+const ADMIN_PAYPAL_EMAIL = 'lenabotrel65@outlook.com';
+const ADMIN_PAYPAL_LINK = 'https://paypal.me/yourusername';
+
 // ==================== INITIALIZATION ====================
 function init() {
     if (isInitialized) return;
@@ -36,7 +40,6 @@ function init() {
             updateProfileUI();
         }
     } else {
-        // Fallback for testing
         userId = 'test_user_' + Date.now();
         userData = {
             id: userId,
@@ -64,19 +67,14 @@ function updateProfileUI() {
         `${userData.name} ${userData.lastName}` : 
         userData.name;
     
-    // Update profile page
     const avatar = document.getElementById('profileAvatar');
     const nameEl = document.getElementById('profileName');
     const usernameEl = document.getElementById('profileUsername');
     const userBtn = document.getElementById('userAvatar');
     
-    // Set name
     nameEl.textContent = fullName;
-    
-    // Set username with @
     usernameEl.textContent = userData.username ? `@${userData.username}` : '@user';
     
-    // Set avatar with real photo or initial
     if (userData.photoUrl) {
         avatar.style.backgroundImage = `url(${userData.photoUrl})`;
         avatar.style.backgroundSize = 'cover';
@@ -97,33 +95,27 @@ function updateProfileUI() {
         userBtn.textContent = userData.name.charAt(0).toUpperCase();
     }
     
-    // Add premium badge if user is premium
-    const usernameContainer = document.querySelector('.profile-username');
     if (userData.isPremium) {
-        usernameContainer.innerHTML = `@${userData.username} ⭐ Premium`;
+        document.querySelector('.profile-username').innerHTML = `@${userData.username} ⭐ Premium`;
     }
     
-    // Update PayPal email
-    document.getElementById('profilePaypalEmail').textContent = window.ADMIN_PAYPAL_EMAIL || 'admin@paypal.com';
-    document.getElementById('modalPaypalEmail').textContent = window.ADMIN_PAYPAL_EMAIL || 'admin@paypal.com';
-    document.getElementById('screenshotPaypalEmail').textContent = window.ADMIN_PAYPAL_EMAIL || 'admin@paypal.com';
+    document.getElementById('profilePaypalEmail').textContent = ADMIN_PAYPAL_EMAIL;
+    document.getElementById('modalPaypalEmail').textContent = ADMIN_PAYPAL_EMAIL;
+    document.getElementById('screenshotPaypalEmail').textContent = ADMIN_PAYPAL_EMAIL;
 }
 
 // ==================== EVENT LISTENERS ====================
 function setupEventListeners() {
-    // Back button
     document.getElementById('backBtn')?.addEventListener('click', () => {
         if (tg) tg.close();
         else window.close();
     });
     
-    // Search
     document.getElementById('searchInput')?.addEventListener('input', (e) => {
         currentSearch = e.target.value.toLowerCase().trim();
         applyFilters();
     });
     
-    // Filter chips
     document.querySelectorAll('.filter-chip').forEach(chip => {
         chip.addEventListener('click', function() {
             document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
@@ -133,7 +125,6 @@ function setupEventListeners() {
         });
     });
     
-    // Bottom navigation
     document.querySelectorAll('.nav-item').forEach(item => {
         item.addEventListener('click', function() {
             document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -158,7 +149,6 @@ function setupEventListeners() {
         });
     });
     
-    // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             closeViewModal();
@@ -167,7 +157,6 @@ function setupEventListeners() {
         }
     });
     
-    // Click outside modals to close
     document.getElementById('purchaseModal')?.addEventListener('click', function(e) {
         if (e.target === this) closePurchaseModal();
     });
@@ -180,7 +169,6 @@ function setupEventListeners() {
         if (e.target === this) closeViewModal();
     });
     
-    // File input for screenshot
     document.getElementById('screenshotInput')?.addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (file) {
@@ -195,7 +183,6 @@ function setupEventListeners() {
         }
     });
     
-    // Telegram back button
     if (tg) {
         tg.onEvent('backButtonClicked', () => {
             if (document.getElementById('viewModal').style.display === 'flex') {
@@ -348,7 +335,8 @@ function renderGallery(media) {
                 </button>
             `;
         } else {
-            badgeHTML = `<div class="badge badge-price">$${item.price || 5.00}</div>`;
+            const priceText = item.isFree ? 'FREE' : `$${item.price || 5.00}`;
+            badgeHTML = `<div class="badge badge-price">${priceText}</div>`;
             actionsHTML = `
                 <button class="btn-action btn-buy" onclick="event.stopPropagation(); openPurchaseModal('${item.id}')">
                     💰 Buy
@@ -356,7 +344,6 @@ function renderGallery(media) {
             `;
         }
         
-        // LOCKED - Show only lock icon, NO photo/video
         const previewContent = isPurchased ? `
             ${item.type === 'video' 
                 ? `<video src="${item.fileUrl}" muted preload="metadata" playsinline></video>`
@@ -366,7 +353,7 @@ function renderGallery(media) {
             <div class="locked-content">
                 <span class="lock-icon">🔒</span>
                 <span class="lock-text">Premium Content</span>
-                <span class="lock-price">$${item.price || 5.00}</span>
+                ${item.isFree ? '<span class="lock-price">FREE 🎉</span>' : `<span class="lock-price">$${item.price || 5.00}</span>`}
             </div>
         `;
         
@@ -424,7 +411,6 @@ async function openPurchaseModal(mediaId) {
     pendingMediaId = mediaId;
     
     try {
-        // Check if already pending
         const response = await fetch(`${BACKEND_URL}/api/pending-status/${userId}/${mediaId}`);
         const result = await response.json();
         if (result.isPending) {
@@ -435,11 +421,11 @@ async function openPurchaseModal(mediaId) {
         console.error('Pending check error:', error);
     }
     
-    // Show modal with LOCKED preview (no photo)
+    // Set modal content
     document.getElementById('modalTitle').textContent = media.title || 'Untitled';
     document.getElementById('modalDescription').textContent = media.description || 'No description';
     document.getElementById('modalPrice').textContent = (media.price || 5.00).toFixed(2);
-    document.getElementById('modalPaypalEmail').textContent = window.ADMIN_PAYPAL_EMAIL || 'admin@paypal.com';
+    document.getElementById('modalPaypalEmail').textContent = ADMIN_PAYPAL_EMAIL;
     
     // LOCKED preview - no actual media shown
     const preview = document.getElementById('modalPreview');
@@ -448,10 +434,11 @@ async function openPurchaseModal(mediaId) {
         <div class="locked-preview-content">
             <div class="lock-icon-large">🔒</div>
             <p>Premium Content</p>
-            <p class="lock-subtitle">Pay to unlock</p>
+            <p class="lock-subtitle">${media.isFree ? 'FREE 🎉' : '$' + (media.price || 5.00).toFixed(2)}</p>
         </div>
     `;
     
+    // Show the modal
     document.getElementById('purchaseModal').style.display = 'flex';
     document.body.style.overflow = 'hidden';
 }
@@ -464,7 +451,7 @@ function closePurchaseModal() {
 // ==================== SCREENSHOT UPLOAD ====================
 function openScreenshotUpload() {
     closePurchaseModal();
-    document.getElementById('screenshotPaypalEmail').textContent = window.ADMIN_PAYPAL_EMAIL || 'admin@paypal.com';
+    document.getElementById('screenshotPaypalEmail').textContent = ADMIN_PAYPAL_EMAIL;
     document.getElementById('screenshotModal').style.display = 'flex';
     document.body.style.overflow = 'hidden';
 }
@@ -495,14 +482,12 @@ async function submitScreenshot() {
         btn.disabled = true;
         btn.innerHTML = '<span>⏳</span> Uploading...';
         
-        // Convert screenshot to base64
         const reader = new FileReader();
         const base64 = await new Promise((resolve) => {
             reader.onload = () => resolve(reader.result);
             reader.readAsDataURL(selectedScreenshot);
         });
         
-        // Send to backend
         const response = await fetch(`${BACKEND_URL}/api/request-purchase`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -617,14 +602,9 @@ function showLoading(show) {
     document.getElementById('loadingOverlay').style.display = show ? 'flex' : 'none';
 }
 
-// ==================== ADMIN SETTINGS ====================
-window.ADMIN_PAYPAL_EMAIL = 'lenabotrel65@outlook.com';
-window.ADMIN_PAYPAL_LINK = 'https://paypal.me/yourusername';
-
 // ==================== INIT ====================
 document.addEventListener('DOMContentLoaded', init);
 
-// Refresh data when tab becomes visible
 document.addEventListener('visibilitychange', () => {
     if (!document.hidden && isInitialized) {
         loadMedia();
