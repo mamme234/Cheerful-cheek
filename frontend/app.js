@@ -1,8 +1,9 @@
 // ==================== CONFIGURATION ====================
 const BACKEND_URL = 'https://cheerful-cheek.onrender.com/api';
+const ADMIN_PAYPAL_EMAIL = 'lenabotrel65@outlook.com';
 
 // ==================== STATE ====================
-let tg = window.Telegram?.WebApp;
+let tg = null;
 let userId = null;
 let allMedia = [];
 let currentFilter = 'all';
@@ -13,114 +14,145 @@ let userData = {};
 let selectedScreenshot = null;
 let pendingMediaId = null;
 let refreshInterval = null;
+let isTelegramWebApp = false;
 
-// ==================== ADMIN PAYPAL ====================
-const ADMIN_PAYPAL_EMAIL = 'lenabotrel65@outlook.com';
+// ==================== CACHE HELPERS ====================
+function saveToCache(key, data) {
+    try {
+        localStorage.setItem(`premium_gallery_${key}`, JSON.stringify(data));
+    } catch (e) { console.warn('Cache save failed:', e); }
+}
+
+function getFromCache(key) {
+    try {
+        const data = localStorage.getItem(`premium_gallery_${key}`);
+        return data ? JSON.parse(data) : null;
+    } catch (e) { return null; }
+}
+
+function savePurchasesToCache(purchases) {
+    saveToCache('purchases', purchases);
+}
+
+function getPurchasesFromCache() {
+    return getFromCache('purchases') || [];
+}
+
+function saveGalleryToCache(media) {
+    saveToCache('gallery', media);
+}
+
+function getGalleryFromCache() {
+    return getFromCache('gallery') || [];
+}
+
+function saveUserToCache(user) {
+    saveToCache('user', user);
+}
+
+function getUserFromCache() {
+    return getFromCache('user');
+}
 
 // ==================== INITIALIZATION ====================
 function init() {
     if (isInitialized) return;
     isInitialized = true;
     
-    console.log('🔍 Checking Telegram WebApp...');
-    console.log('📱 tg exists:', !!tg);
-    console.log('📡 Backend URL:', BACKEND_URL);
+    console.log('🔍 Initializing Premium Gallery...');
     
-    if (tg) {
+    // Check for Telegram WebApp
+    if (window.Telegram && window.Telegram.WebApp) {
+        tg = window.Telegram.WebApp;
+        isTelegramWebApp = true;
         tg.ready();
         tg.expand();
         
         const user = tg.initDataUnsafe?.user;
-        console.log('👤 Telegram user data:', user);
+        console.log('📱 Telegram user data:', user);
         
         if (user) {
-            userId = user.id;
+            userId = String(user.id);
             userData = {
-                id: user.id,
+                id: userId,
                 name: user.first_name || 'User',
                 lastName: user.last_name || '',
-                username: user.username || 'user',
+                username: user.username || '',
                 photoUrl: user.photo_url || null,
                 languageCode: user.language_code || 'en',
                 isPremium: user.is_premium || false
             };
-            console.log('✅ Real Telegram user loaded:', userData);
-        } else {
-            console.warn('⚠️ No user data from Telegram.');
-            const urlParams = new URLSearchParams(window.location.search);
-            const userIdParam = urlParams.get('userId');
-            
-            if (userIdParam) {
-                userId = userIdParam;
-                userData = {
-                    id: userId,
-                    name: urlParams.get('name') || 'User',
-                    lastName: '',
-                    username: urlParams.get('username') || 'user',
-                    photoUrl: null,
-                    languageCode: 'en',
-                    isPremium: false
-                };
-                console.log('✅ User from URL params:', userData);
-            } else {
-                userId = 'user_' + Date.now();
-                userData = {
-                    id: userId,
-                    name: 'User',
-                    lastName: '',
-                    username: 'user',
-                    photoUrl: null,
-                    languageCode: 'en',
-                    isPremium: false
-                };
-                console.log('⚠️ Using fallback user:', userData);
-            }
-        }
-    } else {
-        console.warn('⚠️ Not running in Telegram WebApp');
-        const urlParams = new URLSearchParams(window.location.search);
-        const userIdParam = urlParams.get('userId');
-        
-        if (userIdParam) {
-            userId = userIdParam;
-            userData = {
-                id: userId,
-                name: urlParams.get('name') || 'User',
-                lastName: '',
-                username: urlParams.get('username') || 'user',
-                photoUrl: null,
-                languageCode: 'en',
-                isPremium: false
-            };
-            console.log('✅ User from URL params:', userData);
-        } else {
-            userId = 'test_user_' + Date.now();
-            userData = {
-                id: userId,
-                name: 'Test User',
-                lastName: '',
-                username: 'testuser',
-                photoUrl: null,
-                languageCode: 'en',
-                isPremium: false
-            };
-            console.log('⚠️ Using test user:', userData);
+            saveUserToCache(userData);
+            console.log('✅ Telegram user loaded:', userData);
+            completeInit();
+            return;
         }
     }
     
+    // Fallback: Check URL parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const userIdParam = urlParams.get('userId');
+    const nameParam = urlParams.get('name');
+    const usernameParam = urlParams.get('username');
+    const photoParam = urlParams.get('photo');
+    
+    if (userIdParam) {
+        userId = userIdParam;
+        userData = {
+            id: userId,
+            name: nameParam || 'User',
+            lastName: '',
+            username: usernameParam || 'user',
+            photoUrl: photoParam || null,
+            languageCode: 'en',
+            isPremium: false
+        };
+        saveUserToCache(userData);
+        console.log('✅ User from URL params:', userData);
+        completeInit();
+        return;
+    }
+    
+    // Try loading from cache
+    const cachedUser = getUserFromCache();
+    if (cachedUser) {
+        userData = cachedUser;
+        userId = cachedUser.id;
+        console.log('✅ User loaded from cache:', userData);
+        completeInit();
+        return;
+    }
+    
+    // Last resort: create a guest user
+    userId = 'guest_' + Date.now();
+    userData = {
+        id: userId,
+        name: 'Guest',
+        lastName: '',
+        username: 'guest',
+        photoUrl: null,
+        languageCode: 'en',
+        isPremium: false
+    };
+    saveUserToCache(userData);
+    console.log('⚠️ Using guest user:', userData);
+    completeInit();
+}
+
+function completeInit() {
     updateProfileUI();
-    
-    console.log('✅ Mini App initialized');
-    console.log('👤 Final User:', userData);
-    
     setupEventListeners();
     loadApp();
     
+    // Auto-refresh every 30 seconds
+    if (refreshInterval) clearInterval(refreshInterval);
     refreshInterval = setInterval(() => {
-        if (document.getElementById('gallerySection').classList.contains('active')) {
+        if (document.getElementById('gallerySection')?.classList.contains('active')) {
             refreshData();
         }
-    }, 10000);
+    }, 30000);
+    
+    console.log('✅ App initialized successfully');
 }
 
 // ==================== UPDATE PROFILE UI ====================
@@ -134,10 +166,11 @@ function updateProfileUI() {
     const usernameEl = document.getElementById('profileUsername');
     const userBtn = document.getElementById('userAvatar');
     
-    nameEl.textContent = fullName;
+    nameEl.textContent = fullName || 'User';
     usernameEl.textContent = userData.username ? `@${userData.username}` : '@user';
     
-    if (userData.photoUrl) {
+    // Update avatar
+    if (userData.photoUrl && userData.photoUrl.startsWith('http')) {
         avatar.style.backgroundImage = `url(${userData.photoUrl})`;
         avatar.style.backgroundSize = 'cover';
         avatar.style.backgroundPosition = 'center';
@@ -149,12 +182,12 @@ function updateProfileUI() {
         userBtn.textContent = '';
     } else {
         avatar.style.backgroundImage = 'none';
-        avatar.style.background = 'var(--tg-primary)';
-        avatar.textContent = userData.name.charAt(0).toUpperCase();
+        avatar.style.background = 'linear-gradient(135deg, var(--tg-primary), #ff6b6b)';
+        avatar.textContent = (userData.name || 'U').charAt(0).toUpperCase();
         
         userBtn.style.backgroundImage = 'none';
         userBtn.style.background = 'var(--tg-border)';
-        userBtn.textContent = userData.name.charAt(0).toUpperCase();
+        userBtn.textContent = (userData.name || 'U').charAt(0).toUpperCase();
     }
     
     if (userData.isPremium) {
@@ -168,15 +201,21 @@ function updateProfileUI() {
 
 // ==================== EVENT LISTENERS ====================
 function setupEventListeners() {
-    document.getElementById('backBtn')?.addEventListener('click', () => {
-        if (tg) tg.close();
-        else window.close();
-    });
+    const backBtn = document.getElementById('backBtn');
+    if (backBtn) {
+        backBtn.addEventListener('click', () => {
+            if (tg) tg.close();
+            else window.close();
+        });
+    }
     
-    document.getElementById('searchInput')?.addEventListener('input', (e) => {
-        currentSearch = e.target.value.toLowerCase().trim();
-        applyFilters();
-    });
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            currentSearch = e.target.value.toLowerCase().trim();
+            applyFilters();
+        });
+    }
     
     document.querySelectorAll('.filter-chip').forEach(chip => {
         chip.addEventListener('click', function() {
@@ -234,19 +273,22 @@ function setupEventListeners() {
         if (e.target === this) closeViewModal();
     });
     
-    document.getElementById('screenshotInput')?.addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (file) {
-            selectedScreenshot = file;
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                document.getElementById('screenshotImage').src = event.target.result;
-                document.getElementById('screenshotPreview').style.display = 'block';
-                document.getElementById('screenshotFileName').textContent = file.name;
-            };
-            reader.readAsDataURL(file);
-        }
-    });
+    const screenshotInput = document.getElementById('screenshotInput');
+    if (screenshotInput) {
+        screenshotInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                selectedScreenshot = file;
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    document.getElementById('screenshotImage').src = event.target.result;
+                    document.getElementById('screenshotPreview').style.display = 'block';
+                    document.getElementById('screenshotFileName').textContent = file.name;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
     
     if (tg) {
         tg.onEvent('backButtonClicked', () => {
@@ -274,52 +316,100 @@ async function refreshData() {
     }
 }
 
-// ==================== LOAD DATA ====================
+// ==================== LOAD APP ====================
 async function loadApp() {
     showLoading(true);
     try {
+        // Try loading from cache first for instant display
+        const cachedGallery = getGalleryFromCache();
+        if (cachedGallery && cachedGallery.length > 0) {
+            allMedia = cachedGallery;
+            renderGallery(allMedia);
+            console.log('📸 Loaded from cache:', cachedGallery.length, 'items');
+        }
+        
         await loadMedia();
         await updateStats();
         await loadProfileData();
     } catch (error) {
         console.error('Error loading app:', error);
-        showToast('Failed to load content', 'error');
+        const cached = getGalleryFromCache();
+        if (cached && cached.length > 0) {
+            allMedia = cached;
+            renderGallery(allMedia);
+            showToast('Using cached content', 'info');
+        } else {
+            showToast('Failed to load content', 'error');
+        }
     } finally {
         showLoading(false);
     }
 }
 
-// ==================== FETCH FUNCTIONS ====================
+// ==================== LOAD MEDIA ====================
 async function loadMedia() {
     try {
-        const response = await fetch(`${BACKEND_URL}/media?userId=${userId}`);
+        const response = await fetch(`${BACKEND_URL}/media?userId=${encodeURIComponent(userId)}`, {
+            headers: {
+                'Cache-Control': 'no-cache'
+            }
+        });
         const result = await response.json();
         
         if (result.success) {
             allMedia = result.data || [];
+            // Cache the gallery
+            saveGalleryToCache(allMedia);
             console.log('📸 Media loaded:', allMedia.length, 'items');
             renderGallery(allMedia);
+            
+            // Merge with cached purchases if needed
+            const cachedPurchases = getPurchasesFromCache();
+            if (cachedPurchases && cachedPurchases.length > 0) {
+                allMedia = allMedia.map(item => ({
+                    ...item,
+                    isPurchased: cachedPurchases.includes(item.id) || item.isPurchased
+                }));
+                renderGallery(allMedia);
+            }
         } else {
             console.error('❌ API returned error:', result);
+            // Use cache
+            const cached = getGalleryFromCache();
+            if (cached.length > 0) {
+                allMedia = cached;
+                renderGallery(allMedia);
+            }
             showToast('Failed to load media', 'error');
         }
     } catch (error) {
         console.error('Load media error:', error);
-        showToast('Network error loading media', 'error');
-        throw error;
+        // Use cache
+        const cached = getGalleryFromCache();
+        if (cached.length > 0) {
+            allMedia = cached;
+            renderGallery(allMedia);
+            showToast('Using cached data', 'info');
+        } else {
+            throw error;
+        }
     }
 }
 
+// ==================== UPDATE STATS ====================
 async function updateStats() {
     try {
-        const purchaseRes = await fetch(`${BACKEND_URL}/my-purchases/${userId}`);
+        const purchaseRes = await fetch(`${BACKEND_URL}/my-purchases/${encodeURIComponent(userId)}`);
         const purchaseData = await purchaseRes.json();
         if (purchaseData.success) {
             document.getElementById('purchaseCount').textContent = purchaseData.count || 0;
             document.getElementById('navBadge').textContent = purchaseData.count || 0;
+            // Update cache
+            const purchasedIds = (purchaseData.data || []).map(m => m.id);
+            savePurchasesToCache(purchasedIds);
         }
         
-        const pendingRes = await fetch(`${BACKEND_URL}/my-pending/${userId}`);
+        const pendingRes = await fetch(`${BACKEND_URL}/my-pending/${encodeURIComponent(userId)}`);
         const pendingData = await pendingRes.json();
         if (pendingData.success) {
             document.getElementById('pendingCount').textContent = pendingData.count || 0;
@@ -328,15 +418,22 @@ async function updateStats() {
         document.getElementById('mediaCount').textContent = allMedia.length || 0;
     } catch (error) {
         console.error('Stats error:', error);
+        // Use cached stats
+        const cachedPurchases = getPurchasesFromCache();
+        if (cachedPurchases) {
+            document.getElementById('purchaseCount').textContent = cachedPurchases.length || 0;
+            document.getElementById('navBadge').textContent = cachedPurchases.length || 0;
+        }
     }
 }
 
+// ==================== LOAD PROFILE DATA ====================
 async function loadProfileData() {
     try {
-        const purchaseRes = await fetch(`${BACKEND_URL}/my-purchases/${userId}`);
+        const purchaseRes = await fetch(`${BACKEND_URL}/my-purchases/${encodeURIComponent(userId)}`);
         const purchaseData = await purchaseRes.json();
         
-        const pendingRes = await fetch(`${BACKEND_URL}/my-pending/${userId}`);
+        const pendingRes = await fetch(`${BACKEND_URL}/my-pending/${encodeURIComponent(userId)}`);
         const pendingData = await pendingRes.json();
         
         const totalMedia = allMedia.length || 0;
@@ -528,7 +625,7 @@ function openPurchaseModal(mediaId) {
     currentModalMedia = media;
     pendingMediaId = mediaId;
     
-    fetch(`${BACKEND_URL}/pending-status/${userId}/${mediaId}`)
+    fetch(`${BACKEND_URL}/pending-status/${encodeURIComponent(userId)}/${mediaId}`)
         .then(res => res.json())
         .then(result => {
             if (result.isPending) {
@@ -541,16 +638,6 @@ function openPurchaseModal(mediaId) {
             document.getElementById('modalPrice').textContent = (media.price || 5.00).toFixed(2);
             document.getElementById('modalPaypalEmail').textContent = ADMIN_PAYPAL_EMAIL;
             document.getElementById('modalLockPrice').textContent = '$' + (media.price || 5.00).toFixed(2);
-            
-            const preview = document.getElementById('modalPreview');
-            preview.className = 'modal-preview locked-preview';
-            preview.innerHTML = `
-                <div class="locked-preview-content">
-                    <div class="lock-icon-large">🔒</div>
-                    <p>Premium Content</p>
-                    <p class="lock-subtitle">$${(media.price || 5.00).toFixed(2)}</p>
-                </div>
-            `;
             
             document.getElementById('purchaseModal').style.display = 'flex';
             document.body.style.overflow = 'hidden';
@@ -618,7 +705,7 @@ async function submitScreenshot() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                userId,
+                userId: userId,
                 mediaId: pendingMediaId,
                 screenshot: base64,
                 filename: selectedScreenshot.name
@@ -629,6 +716,21 @@ async function submitScreenshot() {
         console.log('📤 Submit result:', result);
         
         if (result.success) {
+            // Update cache
+            const cachedPurchases = getPurchasesFromCache() || [];
+            if (!cachedPurchases.includes(pendingMediaId)) {
+                cachedPurchases.push(pendingMediaId);
+                savePurchasesToCache(cachedPurchases);
+            }
+            
+            // Update local media state
+            const mediaItem = allMedia.find(m => m.id === pendingMediaId);
+            if (mediaItem) {
+                mediaItem.isPurchased = true;
+                mediaItem.isPending = false;
+                saveGalleryToCache(allMedia);
+            }
+            
             closeScreenshotModal();
             showToast('✅ Screenshot sent! Waiting for admin approval.', 'success');
             setTimeout(() => refreshData(), 2000);
@@ -649,7 +751,7 @@ async function viewMedia(mediaId) {
     console.log('👁️ Viewing media:', mediaId);
     
     try {
-        const response = await fetch(`${BACKEND_URL}/media/${mediaId}?userId=${userId}`);
+        const response = await fetch(`${BACKEND_URL}/media/${mediaId}?userId=${encodeURIComponent(userId)}`);
         const result = await response.json();
         
         if (!result.success) {
@@ -663,10 +765,16 @@ async function viewMedia(mediaId) {
             const autoPurchase = await fetch(`${BACKEND_URL}/auto-purchase-free`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId, mediaId })
+                body: JSON.stringify({ userId: userId, mediaId: mediaId })
             });
             const autoResult = await autoPurchase.json();
             if (autoResult.success) {
+                // Update cache
+                const cachedPurchases = getPurchasesFromCache() || [];
+                if (!cachedPurchases.includes(mediaId)) {
+                    cachedPurchases.push(mediaId);
+                    savePurchasesToCache(cachedPurchases);
+                }
                 await refreshData();
             }
         }
