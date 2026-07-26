@@ -4,7 +4,7 @@ const path = require('path');
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const ADMIN_ID = parseInt(process.env.ADMIN_ID);
-const ADMIN_USERNAME = process.env.ADMIN_USERNAME || '@KING_OF_ALPHA';
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || '@cheerfulchi';
 const ADMIN_PAYPAL_LINK = process.env.ADMIN_PAYPAL_LINK || 'https://paypal.me/yourusername';
 
 const MEDIA_DB_PATH = path.join(__dirname, 'database', 'media.json');
