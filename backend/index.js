@@ -149,6 +149,9 @@ if (process.env.BOT_TOKEN) {
                     [
                         { text: '📱 Open App', callback_data: 'admin_open_app' },
                         { text: '📊 Stats', callback_data: 'admin_stats' }
+                    ],
+                    [
+                        { text: '🖥️ Admin Panel', url: `${process.env.APP_URL || 'https://cheerful-cheek.onrender.com'}/admin` }
                     ]
                 ]
             }
@@ -163,22 +166,6 @@ if (process.env.BOT_TOKEN) {
                         { text: '🖼️ Upload Photo', callback_data: 'upload_photo' }
                     ],
                     [
-                        { text: '🔙 Back to Menu', callback_data: 'admin_back' }
-                    ]
-                ]
-            }
-        };
-
-        // Payment Management Menu
-        const paymentMenu = {
-            reply_markup: {
-                inline_keyboard: [
-                    [
-                        { text: '✅ Approve Payment', callback_data: 'payment_approve' },
-                        { text: '❌ Reject Payment', callback_data: 'payment_reject' }
-                    ],
-                    [
-                        { text: '📋 View All Payments', callback_data: 'payment_list' },
                         { text: '🔙 Back to Menu', callback_data: 'admin_back' }
                     ]
                 ]
@@ -297,6 +284,7 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                     reply_markup: {
                         inline_keyboard: [
                             [{ text: '🔄 Refresh', callback_data: 'admin_dashboard' }],
+                            [{ text: '🖥️ Open Admin Panel', url: `${process.env.APP_URL || 'https://cheerful-cheek.onrender.com'}/admin` }],
                             [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
                         ]
                     }
@@ -326,7 +314,6 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                         paymentList += `   ID: ${p.id}\n\n`;
                     });
                     
-                    // Add approve/reject buttons for each payment
                     const paymentButtons = pendingPayments.map(p => [
                         { text: `✅ Approve ${p.id.substring(0, 8)}`, callback_data: `approve_${p.id}` },
                         { text: `❌ Reject ${p.id.substring(0, 8)}`, callback_data: `reject_${p.id}` }
@@ -392,8 +379,9 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                 } else {
                     let videoList = '📹 Videos:\n\n';
                     videos.forEach((v, index) => {
+                        const priceText = v.price === 0 ? 'FREE' : `$${v.price}`;
                         videoList += `${index + 1}. ${v.title}\n`;
-                        videoList += `   Price: $${v.price}\n`;
+                        videoList += `   Price: ${priceText}\n`;
                         videoList += `   Purchases: ${v.purchases || 0}\n`;
                         videoList += `   Uploaded: ${new Date(v.uploadDate).toLocaleDateString()}\n\n`;
                     });
@@ -425,8 +413,9 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                 } else {
                     let photoList = '📸 Photos:\n\n';
                     photos.forEach((p, index) => {
+                        const priceText = p.price === 0 ? 'FREE' : `$${p.price}`;
                         photoList += `${index + 1}. ${p.title}\n`;
-                        photoList += `   Price: $${p.price}\n`;
+                        photoList += `   Price: ${priceText}\n`;
                         photoList += `   Purchases: ${p.purchases || 0}\n`;
                         photoList += `   Uploaded: ${new Date(p.uploadDate).toLocaleDateString()}\n\n`;
                     });
@@ -635,7 +624,7 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
 
             // Upload actions
             else if (action === 'upload_video') {
-                bot.editMessageText('🎬 Send the video file you want to upload.', {
+                bot.editMessageText('🎬 Send the video file you want to upload.\n\n(You can set price as 0 for FREE content)', {
                     chat_id: chatId,
                     message_id: messageId,
                     reply_markup: {
@@ -648,7 +637,7 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
             }
 
             else if (action === 'upload_photo') {
-                bot.editMessageText('🖼️ Send the photo file you want to upload.', {
+                bot.editMessageText('🖼️ Send the photo file you want to upload.\n\n(You can set price as 0 for FREE content)', {
                     chat_id: chatId,
                     message_id: messageId,
                     reply_markup: {
@@ -674,105 +663,13 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
             // PAYMENT ACTIONS
             // ============================================
 
-            else if (action === 'payment_approve') {
-                const pendingPayments = db.payments.filter(p => p.status === 'pending_approval');
-                if (pendingPayments.length === 0) {
-                    bot.editMessageText('✅ No pending payments to approve.', {
-                        chat_id: chatId,
-                        message_id: messageId,
-                        reply_markup: {
-                            inline_keyboard: [
-                                [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
-                            ]
-                        }
-                    });
-                } else {
-                    const approveButtons = pendingPayments.map(p => [
-                        { text: `✅ ${p.id.substring(0, 8)} - $${p.amount}`, callback_data: `approve_payment_${p.id}` }
-                    ]);
-                    approveButtons.push([{ text: '🔙 Back', callback_data: 'admin_payments' }]);
-                    
-                    bot.editMessageText('💳 Select payment to approve:', {
-                        chat_id: chatId,
-                        message_id: messageId,
-                        reply_markup: {
-                            inline_keyboard: approveButtons
-                        }
-                    });
-                }
-            }
-
-            else if (action === 'payment_reject') {
-                const pendingPayments = db.payments.filter(p => p.status === 'pending_approval');
-                if (pendingPayments.length === 0) {
-                    bot.editMessageText('✅ No pending payments to reject.', {
-                        chat_id: chatId,
-                        message_id: messageId,
-                        reply_markup: {
-                            inline_keyboard: [
-                                [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
-                            ]
-                        }
-                    });
-                } else {
-                    const rejectButtons = pendingPayments.map(p => [
-                        { text: `❌ ${p.id.substring(0, 8)} - $${p.amount}`, callback_data: `reject_payment_${p.id}` }
-                    ]);
-                    rejectButtons.push([{ text: '🔙 Back', callback_data: 'admin_payments' }]);
-                    
-                    bot.editMessageText('💳 Select payment to reject:', {
-                        chat_id: chatId,
-                        message_id: messageId,
-                        reply_markup: {
-                            inline_keyboard: rejectButtons
-                        }
-                    });
-                }
-            }
-
-            else if (action === 'payment_list') {
-                const allPayments = db.payments.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-                if (allPayments.length === 0) {
-                    bot.editMessageText('💳 No payments yet.', {
-                        chat_id: chatId,
-                        message_id: messageId,
-                        reply_markup: {
-                            inline_keyboard: [
-                                [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
-                            ]
-                        }
-                    });
-                } else {
-                    let paymentList = '💳 All Payments:\n\n';
-                    allPayments.slice(0, 10).forEach((p, index) => {
-                        const user = db.users.find(u => u.id === p.userId);
-                        const media = db.media.find(m => m.id === p.itemId);
-                        paymentList += `${index + 1}. User: ${user ? user.firstName : 'Unknown'}\n`;
-                        paymentList += `   Item: ${media ? media.title : 'Unknown'}\n`;
-                        paymentList += `   Amount: $${p.amount}\n`;
-                        paymentList += `   Status: ${p.status}\n`;
-                        paymentList += `   Date: ${new Date(p.timestamp).toLocaleDateString()}\n\n`;
-                    });
-                    
-                    bot.editMessageText(paymentList, {
-                        chat_id: chatId,
-                        message_id: messageId,
-                        reply_markup: {
-                            inline_keyboard: [
-                                [{ text: '🔙 Back', callback_data: 'admin_payments' }]
-                            ]
-                        }
-                    });
-                }
-            }
-
-            else if (action.startsWith('approve_payment_')) {
-                const paymentId = action.replace('approve_payment_', '');
+            else if (action.startsWith('approve_')) {
+                const paymentId = action.replace('approve_', '');
                 await approvePayment(chatId, messageId, paymentId);
             }
 
-            else if (action.startsWith('reject_payment_')) {
-                const paymentId = action.replace('reject_payment_', '');
+            else if (action.startsWith('reject_')) {
+                const paymentId = action.replace('reject_', '');
                 await rejectPayment(chatId, messageId, paymentId);
             }
 
@@ -842,6 +739,62 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                     reply_markup: userMenu.reply_markup
                 });
                 delete db.uploadStates[chatId];
+            }
+
+            // ============================================
+            // CONFIRM UPLOAD
+            // ============================================
+
+            else if (action === 'confirm_upload') {
+                const state = db.uploadStates[chatId];
+                
+                if (!state) {
+                    bot.answerCallbackQuery(callbackQuery.id);
+                    return;
+                }
+
+                const newMedia = {
+                    id: db.media.length + 1,
+                    type: state.type,
+                    title: state.title,
+                    description: state.description,
+                    price: state.price,
+                    url: `${process.env.APP_URL || 'https://cheerful-cheek.onrender.com'}${state.filePath}`,
+                    thumbnail: `${process.env.APP_URL || 'https://cheerful-cheek.onrender.com'}${state.filePath}`,
+                    duration: state.duration || null,
+                    date: new Date().toISOString().split('T')[0],
+                    isPurchased: false,
+                    filename: path.basename(state.filePath),
+                    uploadDate: new Date().toISOString(),
+                    uploadedBy: chatId,
+                    purchases: 0,
+                    isFree: state.price === 0
+                };
+                
+                db.media.push(newMedia);
+                
+                const priceText = state.price === 0 ? 'FREE' : `$${state.price}`;
+                bot.editMessageText(`✅ Content uploaded successfully!\n\n📋 Details:\nTitle: ${state.title}\nPrice: ${priceText}`, {
+                    chat_id: chatId,
+                    message_id: messageId,
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
+                        ]
+                    }
+                });
+                
+                // Notify all users
+                db.users.forEach(user => {
+                    try {
+                        bot.sendMessage(user.id, `🎉 New content available: ${state.title} (${priceText})`);
+                    } catch (e) {
+                        console.error('Error notifying user:', e);
+                    }
+                });
+                
+                delete db.uploadStates[chatId];
+                bot.answerCallbackQuery(callbackQuery.id);
             }
         });
 
@@ -916,536 +869,6 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
             }
         });
 
-        // ============================================
-        // HELPER FUNCTIONS
-        // ============================================
-
-        function getDashboardStats() {
-            const totalUsers = db.users.length;
-            const totalMedia = db.media.length;
-            const totalSales = db.purchases.length;
-            const totalRevenue = db.purchases.reduce((sum, p) => sum + p.amount, 0);
-            const pendingPayments = db.payments.filter(p => p.status === 'pending_approval').length;
-            
-            const recentActivity = [];
-            if (db.payments.length > 0) {
-                const latestPayment = db.payments[db.payments.length - 1];
-                recentActivity.push(`💰 New payment from ${latestPayment.userName || 'User'}`);
-            }
-            if (db.purchases.length > 0) {
-                const latestPurchase = db.purchases[db.purchases.length - 1];
-                const media = db.media.find(m => m.id === latestPurchase.itemId);
-                recentActivity.push(`📦 Purchase: ${media ? media.title : 'Item'}`);
-            }
-            if (db.users.length > 0) {
-                const latestUser = db.users[db.users.length - 1];
-                recentActivity.push(`👤 New user: ${latestUser.firstName}`);
-            }
-            
-            return {
-                totalUsers,
-                totalMedia,
-                totalSales,
-                totalRevenue,
-                pendingPayments,
-                recentActivity: recentActivity.length > 0 ? recentActivity : ['No recent activity']
-            };
-        }
-
-        async function handleAdminUpload(msg, chatId, type) {
-            try {
-                let file, fileName, localPath;
-                
-                if (type === 'photo') {
-                    file = msg.photo[msg.photo.length - 1];
-                    fileName = `media-${Date.now()}.jpg`;
-                } else {
-                    file = msg.video;
-                    fileName = `media-${Date.now()}.mp4`;
-                }
-                
-                const fileInfo = await bot.getFile(file.file_id);
-                localPath = path.join(__dirname, 'uploads/media', fileName);
-                
-                const url = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${fileInfo.file_path}`;
-                const response = await axios({
-                    method: 'get',
-                    url: url,
-                    responseType: 'stream'
-                });
-                
-                const writer = fs.createWriteStream(localPath);
-                response.data.pipe(writer);
-                
-                await new Promise((resolve, reject) => {
-                    writer.on('finish', resolve);
-                    writer.on('error', reject);
-                });
-
-                db.uploadStates[chatId].filePath = `/uploads/media/${fileName}`;
-                db.uploadStates[chatId].duration = type === 'video' ? file.duration : null;
-                db.uploadStates[chatId].step = 'title';
-                
-                bot.sendMessage(chatId, '📝 Enter the title for this content:', {
-                    reply_markup: {
-                        inline_keyboard: [
-                            [{ text: '🔙 Cancel', callback_data: 'admin_upload' }]
-                        ]
-                    }
-                });
-            } catch (error) {
-                console.error('Error handling upload:', error);
-                bot.sendMessage(chatId, '❌ Error uploading file. Please try again.');
-                delete db.uploadStates[chatId];
-            }
-        }
-
-        async function handleUploadDetails(chatId, text) {
-            const state = db.uploadStates[chatId];
-            
-            switch (state.step) {
-                case 'title':
-                    state.title = text;
-                    state.step = 'description';
-                    bot.sendMessage(chatId, '📝 Enter the description:');
-                    break;
-                    
-                case 'description':
-                    state.description = text;
-                    state.step = 'price';
-                    bot.sendMessage(chatId, '💰 Enter the price (in USD, e.g., 9.99):');
-                    break;
-                    
-                case 'price':
-                    const price = parseFloat(text);
-                    if (isNaN(price) || price < 0) {
-                        bot.sendMessage(chatId, '❌ Invalid price. Please enter a valid number:');
-                        return;
-                    }
-                    
-                    state.price = price;
-                    state.step = 'confirm';
-                    
-                    const preview = `
-📋 Content Preview:
-Title: ${state.title}
-Description: ${state.description}
-Price: $${price.toFixed(2)}
-Type: ${state.type}
-
-Confirm upload?
-                    `;
-                    bot.sendMessage(chatId, preview, {
-                        reply_markup: {
-                            inline_keyboard: [
-                                [
-                                    { text: '✅ Yes, Upload', callback_data: 'confirm_upload' },
-                                    { text: '❌ No, Cancel', callback_data: 'admin_upload' }
-                                ]
-                            ]
-                        }
-                    });
-                    break;
-            }
-        }
-
-        // Handle confirm upload callback
-        bot.on('callback_query', async (callbackQuery) => {
-            if (callbackQuery.data === 'confirm_upload') {
-                const chatId = callbackQuery.message.chat.id;
-                const state = db.uploadStates[chatId];
-                
-                if (!state) {
-                    bot.answerCallbackQuery(callbackQuery.id);
-                    return;
-                }
-
-                const newMedia = {
-                    id: db.media.length + 1,
-                    type: state.type,
-                    title: state.title,
-                    description: state.description,
-                    price: state.price,
-                    url: `${process.env.APP_URL || 'https://cheerful-cheek.onrender.com'}${state.filePath}`,
-                    thumbnail: `${process.env.APP_URL || 'https://cheerful-cheek.onrender.com'}${state.filePath}`,
-                    duration: state.duration || null,
-                    date: new Date().toISOString().split('T')[0],
-                    isPurchased: false,
-                    filename: path.basename(state.filePath),
-                    uploadDate: new Date().toISOString(),
-                    uploadedBy: chatId,
-                    purchases: 0
-                };
-                
-                db.media.push(newMedia);
-                
-                bot.editMessageText('✅ Content uploaded successfully!', {
-                    chat_id: chatId,
-                    message_id: callbackQuery.message.message_id,
-                    reply_markup: {
-                        inline_keyboard: [
-                            [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
-                        ]
-                    }
-                });
-                
-                // Notify all users
-                db.users.forEach(user => {
-                    try {
-                        bot.sendMessage(user.id, `🎉 New content available: ${state.title}`);
-                    } catch (e) {
-                        console.error('Error notifying user:', e);
-                    }
-                });
-                
-                delete db.uploadStates[chatId];
-                bot.answerCallbackQuery(callbackQuery.id);
-            }
-        });
-
-        async function approvePayment(chatId, messageId, paymentId) {
-            const payment = db.payments.find(p => p.id === paymentId);
-            
-            if (!payment) {
-                bot.editMessageText('❌ Payment not found.', {
-                    chat_id: chatId,
-                    message_id: messageId,
-                    reply_markup: {
-                        inline_keyboard: [
-                            [{ text: '🔙 Back', callback_data: 'admin_payments' }]
-                        ]
-                    }
-                });
-                return;
-            }
-
-            if (payment.status === 'approved') {
-                bot.editMessageText('ℹ️ Payment already approved.', {
-                    chat_id: chatId,
-                    message_id: messageId,
-                    reply_markup: {
-                        inline_keyboard: [
-                            [{ text: '🔙 Back', callback_data: 'admin_payments' }]
-                        ]
-                    }
-                });
-                return;
-            }
-
-            // Approve payment
-            payment.status = 'approved';
-            payment.approvedAt = new Date().toISOString();
-            payment.approvedBy = chatId;
-
-            // Create purchase record
-            const purchase = {
-                id: db.purchases.length + 1,
-                userId: payment.userId,
-                itemId: payment.itemId,
-                amount: payment.amount,
-                purchaseDate: new Date().toISOString(),
-                paymentId: payment.id,
-                status: 'approved',
-                approvedBy: chatId
-            };
-            db.purchases.push(purchase);
-
-            // Update stats
-            db.stats.totalSales++;
-            db.stats.totalRevenue += payment.amount;
-
-            // Mark media as purchased
-            const media = db.media.find(m => m.id === payment.itemId);
-            if (media) {
-                media.isPurchased = true;
-                media.purchasedBy = media.purchasedBy || [];
-                media.purchasedBy.push(payment.userId);
-                media.purchases = (media.purchases || 0) + 1;
-            }
-
-            // Notify user
-            try {
-                await bot.sendMessage(payment.userId, `✅ Your payment for "${media ? media.title : 'item'}" has been approved! You can now access the content.`);
-            } catch (e) {
-                console.error('Error notifying user:', e);
-            }
-
-            bot.editMessageText(`✅ Payment ${paymentId} approved successfully!`, {
-                chat_id: chatId,
-                message_id: messageId,
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: '🔙 Back to Payments', callback_data: 'admin_payments' }]
-                    ]
-                }
-            });
-        }
-
-        async function rejectPayment(chatId, messageId, paymentId) {
-            const payment = db.payments.find(p => p.id === paymentId);
-            
-            if (!payment) {
-                bot.editMessageText('❌ Payment not found.', {
-                    chat_id: chatId,
-                    message_id: messageId,
-                    reply_markup: {
-                        inline_keyboard: [
-                            [{ text: '🔙 Back', callback_data: 'admin_payments' }]
-                        ]
-                    }
-                });
-                return;
-            }
-
-            if (payment.status === 'approved') {
-                bot.editMessageText('ℹ️ Payment already approved.', {
-                    chat_id: chatId,
-                    message_id: messageId,
-                    reply_markup: {
-                        inline_keyboard: [
-                            [{ text: '🔙 Back', callback_data: 'admin_payments' }]
-                        ]
-                    }
-                });
-                return;
-            }
-
-            payment.status = 'rejected';
-            payment.rejectedAt = new Date().toISOString();
-            payment.rejectedBy = chatId;
-
-            // Notify user
-            try {
-                await bot.sendMessage(payment.userId, `❌ Your payment has been rejected. Please contact admin for more information.`);
-            } catch (e) {
-                console.error('Error notifying user:', e);
-            }
-
-            bot.editMessageText(`❌ Payment ${paymentId} rejected.`, {
-                chat_id: chatId,
-                message_id: messageId,
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: '🔙 Back to Payments', callback_data: 'admin_payments' }]
-                    ]
-                }
-            });
-        }
-
-        async function handleUserPaymentScreenshot(msg, chatId) {
-            try {
-                // Check if user has a pending payment
-                const pendingPayment = db.payments.find(p => 
-                    p.userId === chatId && p.status === 'pending'
-                );
-
-                if (!pendingPayment) {
-                    bot.sendMessage(chatId, '❌ No pending payment found. Please make a payment first.');
-                    delete db.uploadStates[chatId];
-                    return;
-                }
-
-                let file, fileName, localPath;
-                
-                if (msg.photo) {
-                    file = msg.photo[msg.photo.length - 1];
-                    fileName = `screenshot-${Date.now()}.jpg`;
-                } else if (msg.document) {
-                    file = msg.document;
-                    if (!file.mime_type || !file.mime_type.startsWith('image/')) {
-                        bot.sendMessage(chatId, '❌ Please send an image file as screenshot.');
-                        return;
-                    }
-                    fileName = `screenshot-${Date.now()}.jpg`;
-                } else {
-                    bot.sendMessage(chatId, '❌ Please send a photo or image file.');
-                    return;
-                }
-                
-                const fileInfo = await bot.getFile(file.file_id);
-                localPath = path.join(__dirname, 'uploads/screenshots', fileName);
-                
-                const url = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${fileInfo.file_path}`;
-                const response = await axios({
-                    method: 'get',
-                    url: url,
-                    responseType: 'stream'
-                });
-                
-                const writer = fs.createWriteStream(localPath);
-                response.data.pipe(writer);
-                
-                await new Promise((resolve, reject) => {
-                    writer.on('finish', resolve);
-                    writer.on('error', reject);
-                });
-
-                // Update payment with screenshot
-                pendingPayment.screenshot = `${process.env.APP_URL || 'https://cheerful-cheek.onrender.com'}/uploads/screenshots/${fileName}`;
-                pendingPayment.status = 'pending_approval';
-                pendingPayment.screenshotDate = new Date().toISOString();
-
-                // Notify user
-                bot.sendMessage(chatId, '✅ Payment screenshot received! Admin will review and approve shortly.', {
-                    reply_markup: {
-                        inline_keyboard: [
-                            [{ text: '📱 Open App', callback_data: 'user_open_app' }]
-                        ]
-                    }
-                });
-
-                // Forward to all admins
-                const media = db.media.find(m => m.id === pendingPayment.itemId);
-                const user = db.users.find(u => u.id === chatId);
-                const userName = user ? user.firstName || 'User' : 'User';
-
-                const adminMessage = `
-💳 New Payment Screenshot Received!
-
-👤 User: ${userName} (${chatId})
-📦 Item: ${media ? media.title : 'Unknown'}
-💰 Amount: $${pendingPayment.amount}
-📅 Date: ${new Date().toISOString()}
-🆔 Payment ID: ${pendingPayment.id}
-
-📸 Screenshot attached below.
-                `;
-
-                // Send to all admins
-                for (const admin of db.admins) {
-                    try {
-                        await bot.sendPhoto(admin.id, localPath, {
-                            caption: adminMessage,
-                            reply_markup: {
-                                inline_keyboard: [
-                                    [
-                                        { text: '✅ Approve', callback_data: `approve_payment_${pendingPayment.id}` },
-                                        { text: '❌ Reject', callback_data: `reject_payment_${pendingPayment.id}` }
-                                    ]
-                                ]
-                            }
-                        });
-                    } catch (e) {
-                        console.error(`Error sending to admin ${admin.id}:`, e);
-                    }
-                }
-
-                delete db.uploadStates[chatId];
-
-            } catch (error) {
-                console.error('Error handling screenshot:', error);
-                bot.sendMessage(chatId, '❌ Error processing screenshot. Please try again.');
-                delete db.uploadStates[chatId];
-            }
-        }
-
-        async function handleBroadcast(chatId, message) {
-            const users = db.users;
-            let successCount = 0;
-            
-            for (const user of users) {
-                try {
-                    await bot.sendMessage(user.id, `📢 Admin Broadcast:\n\n${message}`);
-                    successCount++;
-                } catch (e) {
-                    console.error('Error broadcasting to user:', e);
-                }
-            }
-            
-            bot.sendMessage(chatId, `✅ Broadcast sent to ${successCount} users.`, {
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
-                    ]
-                }
-            });
-            
-            delete db.uploadStates[chatId];
-        }
-
-        async function handleAddAdmin(chatId, text) {
-            const newAdminId = parseInt(text);
-            
-            if (isNaN(newAdminId)) {
-                bot.sendMessage(chatId, '❌ Invalid ID. Please send a valid Telegram ID (numbers only).');
-                return;
-            }
-            
-            if (db.admins.some(a => a.id === newAdminId)) {
-                bot.sendMessage(chatId, 'ℹ️ This user is already an admin.');
-                delete db.uploadStates[chatId];
-                return;
-            }
-            
-            try {
-                const userInfo = await bot.getChat(newAdminId);
-                const newAdmin = {
-                    id: newAdminId,
-                    username: userInfo.username || 'Unknown',
-                    firstName: userInfo.first_name || 'Unknown',
-                    lastName: userInfo.last_name || '',
-                    addedAt: new Date().toISOString(),
-                    addedBy: chatId,
-                    role: 'admin'
-                };
-                
-                db.admins.push(newAdmin);
-                bot.sendMessage(chatId, `✅ ${newAdmin.firstName} has been added as admin!`, {
-                    reply_markup: {
-                        inline_keyboard: [
-                            [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
-                        ]
-                    }
-                });
-                bot.sendMessage(newAdminId, `🎉 You have been added as an admin to Cheerful Chick Bot! Use /start to see available commands.`);
-                delete db.uploadStates[chatId];
-            } catch (error) {
-                bot.sendMessage(chatId, `❌ Error adding admin: ${error.message}`);
-                delete db.uploadStates[chatId];
-            }
-        }
-
-        async function handleUserChat(chatId, message) {
-            // Save message
-            const newMessage = {
-                id: db.messages.length + 1,
-                userId: chatId,
-                message: message,
-                type: 'text',
-                timestamp: new Date().toISOString(),
-                read: false
-            };
-            db.messages.push(newMessage);
-            
-            // Forward to all admins
-            const user = db.users.find(u => u.id === chatId);
-            const userName = user ? user.firstName || 'User' : 'User';
-            
-            for (const admin of db.admins) {
-                try {
-                    await bot.sendMessage(admin.id, `💬 New message from ${userName} (${chatId}):\n\n${message}`, {
-                        reply_markup: {
-                            inline_keyboard: [
-                                [{ text: '💬 Reply', callback_data: `reply_user_${chatId}` }]
-                            ]
-                        }
-                    });
-                } catch (e) {
-                    console.error('Error forwarding message to admin:', e);
-                }
-            }
-            
-            bot.sendMessage(chatId, '✅ Message sent to admin. They will respond shortly.', {
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: '🔙 Back', callback_data: 'user_back' }]
-                    ]
-                }
-            });
-            
-            delete db.uploadStates[chatId];
-        }
-
         // Handle admin reply to user
         bot.on('callback_query', async (callbackQuery) => {
             if (callbackQuery.data.startsWith('reply_user_')) {
@@ -1496,6 +919,483 @@ Confirm upload?
     } catch (error) {
         console.error('Error initializing bot:', error);
     }
+}
+
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
+
+function getDashboardStats() {
+    const totalUsers = db.users.length;
+    const totalMedia = db.media.length;
+    const totalSales = db.purchases.length;
+    const totalRevenue = db.purchases.reduce((sum, p) => sum + p.amount, 0);
+    const pendingPayments = db.payments.filter(p => p.status === 'pending_approval').length;
+    
+    const recentActivity = [];
+    if (db.payments.length > 0) {
+        const latestPayment = db.payments[db.payments.length - 1];
+        recentActivity.push(`💰 New payment from ${latestPayment.userName || 'User'}`);
+    }
+    if (db.purchases.length > 0) {
+        const latestPurchase = db.purchases[db.purchases.length - 1];
+        const media = db.media.find(m => m.id === latestPurchase.itemId);
+        recentActivity.push(`📦 Purchase: ${media ? media.title : 'Item'}`);
+    }
+    if (db.users.length > 0) {
+        const latestUser = db.users[db.users.length - 1];
+        recentActivity.push(`👤 New user: ${latestUser.firstName}`);
+    }
+    
+    return {
+        totalUsers,
+        totalMedia,
+        totalSales,
+        totalRevenue,
+        pendingPayments,
+        recentActivity: recentActivity.length > 0 ? recentActivity : ['No recent activity']
+    };
+}
+
+async function handleAdminUpload(msg, chatId, type) {
+    try {
+        let file, fileName, localPath;
+        
+        if (type === 'photo') {
+            file = msg.photo[msg.photo.length - 1];
+            fileName = `media-${Date.now()}.jpg`;
+        } else {
+            file = msg.video;
+            fileName = `media-${Date.now()}.mp4`;
+        }
+        
+        const fileInfo = await bot.getFile(file.file_id);
+        localPath = path.join(__dirname, 'uploads/media', fileName);
+        
+        const url = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${fileInfo.file_path}`;
+        const response = await axios({
+            method: 'get',
+            url: url,
+            responseType: 'stream'
+        });
+        
+        const writer = fs.createWriteStream(localPath);
+        response.data.pipe(writer);
+        
+        await new Promise((resolve, reject) => {
+            writer.on('finish', resolve);
+            writer.on('error', reject);
+        });
+
+        db.uploadStates[chatId].filePath = `/uploads/media/${fileName}`;
+        db.uploadStates[chatId].duration = type === 'video' ? file.duration : null;
+        db.uploadStates[chatId].step = 'title';
+        
+        bot.sendMessage(chatId, '📝 Enter the title for this content:', {
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: '🔙 Cancel', callback_data: 'admin_upload' }]
+                ]
+            }
+        });
+    } catch (error) {
+        console.error('Error handling upload:', error);
+        bot.sendMessage(chatId, '❌ Error uploading file. Please try again.');
+        delete db.uploadStates[chatId];
+    }
+}
+
+async function handleUploadDetails(chatId, text) {
+    const state = db.uploadStates[chatId];
+    
+    switch (state.step) {
+        case 'title':
+            state.title = text;
+            state.step = 'description';
+            bot.sendMessage(chatId, '📝 Enter the description:');
+            break;
+            
+        case 'description':
+            state.description = text;
+            state.step = 'price';
+            bot.sendMessage(chatId, '💰 Enter the price (in USD, e.g., 9.99)\n\nType 0 for FREE content:');
+            break;
+            
+        case 'price':
+            const price = parseFloat(text);
+            if (isNaN(price) || price < 0) {
+                bot.sendMessage(chatId, '❌ Invalid price. Please enter a valid number (0 or higher):');
+                return;
+            }
+            
+            state.price = price;
+            state.step = 'confirm';
+            
+            const priceText = price === 0 ? 'FREE' : `$${price.toFixed(2)}`;
+            const preview = `
+📋 Content Preview:
+Title: ${state.title}
+Description: ${state.description}
+Price: ${priceText}
+Type: ${state.type}
+
+Confirm upload?
+            `;
+            bot.sendMessage(chatId, preview, {
+                reply_markup: {
+                    inline_keyboard: [
+                        [
+                            { text: '✅ Yes, Upload', callback_data: 'confirm_upload' },
+                            { text: '❌ No, Cancel', callback_data: 'admin_upload' }
+                        ]
+                    ]
+                }
+            });
+            break;
+    }
+}
+
+async function approvePayment(chatId, messageId, paymentId) {
+    const payment = db.payments.find(p => p.id === paymentId);
+    
+    if (!payment) {
+        bot.editMessageText('❌ Payment not found.', {
+            chat_id: chatId,
+            message_id: messageId,
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: '🔙 Back', callback_data: 'admin_payments' }]
+                ]
+            }
+        });
+        return;
+    }
+
+    if (payment.status === 'approved') {
+        bot.editMessageText('ℹ️ Payment already approved.', {
+            chat_id: chatId,
+            message_id: messageId,
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: '🔙 Back', callback_data: 'admin_payments' }]
+                ]
+            }
+        });
+        return;
+    }
+
+    // Approve payment
+    payment.status = 'approved';
+    payment.approvedAt = new Date().toISOString();
+    payment.approvedBy = chatId;
+
+    // Create purchase record
+    const purchase = {
+        id: db.purchases.length + 1,
+        userId: payment.userId,
+        itemId: payment.itemId,
+        amount: payment.amount,
+        purchaseDate: new Date().toISOString(),
+        paymentId: payment.id,
+        status: 'approved',
+        approvedBy: chatId
+    };
+    db.purchases.push(purchase);
+
+    // Update stats
+    db.stats.totalSales++;
+    db.stats.totalRevenue += payment.amount;
+
+    // Mark media as purchased
+    const media = db.media.find(m => m.id === payment.itemId);
+    if (media) {
+        media.isPurchased = true;
+        media.purchasedBy = media.purchasedBy || [];
+        media.purchasedBy.push(payment.userId);
+        media.purchases = (media.purchases || 0) + 1;
+    }
+
+    // Notify user
+    try {
+        await bot.sendMessage(payment.userId, `✅ Your payment for "${media ? media.title : 'item'}" has been approved! You can now access the content.`);
+    } catch (e) {
+        console.error('Error notifying user:', e);
+    }
+
+    bot.editMessageText(`✅ Payment ${paymentId} approved successfully!`, {
+        chat_id: chatId,
+        message_id: messageId,
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: '🔙 Back to Payments', callback_data: 'admin_payments' }]
+            ]
+        }
+    });
+}
+
+async function rejectPayment(chatId, messageId, paymentId) {
+    const payment = db.payments.find(p => p.id === paymentId);
+    
+    if (!payment) {
+        bot.editMessageText('❌ Payment not found.', {
+            chat_id: chatId,
+            message_id: messageId,
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: '🔙 Back', callback_data: 'admin_payments' }]
+                ]
+            }
+        });
+        return;
+    }
+
+    if (payment.status === 'approved') {
+        bot.editMessageText('ℹ️ Payment already approved.', {
+            chat_id: chatId,
+            message_id: messageId,
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: '🔙 Back', callback_data: 'admin_payments' }]
+                ]
+            }
+        });
+        return;
+    }
+
+    payment.status = 'rejected';
+    payment.rejectedAt = new Date().toISOString();
+    payment.rejectedBy = chatId;
+
+    // Notify user
+    try {
+        await bot.sendMessage(payment.userId, `❌ Your payment has been rejected. Please contact admin for more information.`);
+    } catch (e) {
+        console.error('Error notifying user:', e);
+    }
+
+    bot.editMessageText(`❌ Payment ${paymentId} rejected.`, {
+        chat_id: chatId,
+        message_id: messageId,
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: '🔙 Back to Payments', callback_data: 'admin_payments' }]
+            ]
+        }
+    });
+}
+
+async function handleUserPaymentScreenshot(msg, chatId) {
+    try {
+        // Check if user has a pending payment
+        const pendingPayment = db.payments.find(p => 
+            p.userId === chatId && p.status === 'pending'
+        );
+
+        if (!pendingPayment) {
+            bot.sendMessage(chatId, '❌ No pending payment found. Please make a payment first.');
+            delete db.uploadStates[chatId];
+            return;
+        }
+
+        let file, fileName, localPath;
+        
+        if (msg.photo) {
+            file = msg.photo[msg.photo.length - 1];
+            fileName = `screenshot-${Date.now()}.jpg`;
+        } else if (msg.document) {
+            file = msg.document;
+            if (!file.mime_type || !file.mime_type.startsWith('image/')) {
+                bot.sendMessage(chatId, '❌ Please send an image file as screenshot.');
+                return;
+            }
+            fileName = `screenshot-${Date.now()}.jpg`;
+        } else {
+            bot.sendMessage(chatId, '❌ Please send a photo or image file.');
+            return;
+        }
+        
+        const fileInfo = await bot.getFile(file.file_id);
+        localPath = path.join(__dirname, 'uploads/screenshots', fileName);
+        
+        const url = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${fileInfo.file_path}`;
+        const response = await axios({
+            method: 'get',
+            url: url,
+            responseType: 'stream'
+        });
+        
+        const writer = fs.createWriteStream(localPath);
+        response.data.pipe(writer);
+        
+        await new Promise((resolve, reject) => {
+            writer.on('finish', resolve);
+            writer.on('error', reject);
+        });
+
+        // Update payment with screenshot
+        pendingPayment.screenshot = `${process.env.APP_URL || 'https://cheerful-cheek.onrender.com'}/uploads/screenshots/${fileName}`;
+        pendingPayment.status = 'pending_approval';
+        pendingPayment.screenshotDate = new Date().toISOString();
+
+        // Notify user
+        bot.sendMessage(chatId, '✅ Payment screenshot received! Admin will review and approve shortly.', {
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: '📱 Open App', callback_data: 'user_open_app' }]
+                ]
+            }
+        });
+
+        // Forward to all admins
+        const media = db.media.find(m => m.id === pendingPayment.itemId);
+        const user = db.users.find(u => u.id === chatId);
+        const userName = user ? user.firstName || 'User' : 'User';
+
+        const adminMessage = `
+💳 New Payment Screenshot Received!
+
+👤 User: ${userName} (${chatId})
+📦 Item: ${media ? media.title : 'Unknown'}
+💰 Amount: $${pendingPayment.amount}
+📅 Date: ${new Date().toISOString()}
+🆔 Payment ID: ${pendingPayment.id}
+
+📸 Screenshot attached below.
+        `;
+
+        // Send to all admins
+        for (const admin of db.admins) {
+            try {
+                await bot.sendPhoto(admin.id, localPath, {
+                    caption: adminMessage,
+                    reply_markup: {
+                        inline_keyboard: [
+                            [
+                                { text: '✅ Approve', callback_data: `approve_${pendingPayment.id}` },
+                                { text: '❌ Reject', callback_data: `reject_${pendingPayment.id}` }
+                            ]
+                        ]
+                    }
+                });
+            } catch (e) {
+                console.error(`Error sending to admin ${admin.id}:`, e);
+            }
+        }
+
+        delete db.uploadStates[chatId];
+
+    } catch (error) {
+        console.error('Error handling screenshot:', error);
+        bot.sendMessage(chatId, '❌ Error processing screenshot. Please try again.');
+        delete db.uploadStates[chatId];
+    }
+}
+
+async function handleBroadcast(chatId, message) {
+    const users = db.users;
+    let successCount = 0;
+    
+    for (const user of users) {
+        try {
+            await bot.sendMessage(user.id, `📢 Admin Broadcast:\n\n${message}`);
+            successCount++;
+        } catch (e) {
+            console.error('Error broadcasting to user:', e);
+        }
+    }
+    
+    bot.sendMessage(chatId, `✅ Broadcast sent to ${successCount} users.`, {
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
+            ]
+        }
+    });
+    
+    delete db.uploadStates[chatId];
+}
+
+async function handleAddAdmin(chatId, text) {
+    const newAdminId = parseInt(text);
+    
+    if (isNaN(newAdminId)) {
+        bot.sendMessage(chatId, '❌ Invalid ID. Please send a valid Telegram ID (numbers only).');
+        return;
+    }
+    
+    if (db.admins.some(a => a.id === newAdminId)) {
+        bot.sendMessage(chatId, 'ℹ️ This user is already an admin.');
+        delete db.uploadStates[chatId];
+        return;
+    }
+    
+    try {
+        const userInfo = await bot.getChat(newAdminId);
+        const newAdmin = {
+            id: newAdminId,
+            username: userInfo.username || 'Unknown',
+            firstName: userInfo.first_name || 'Unknown',
+            lastName: userInfo.last_name || '',
+            addedAt: new Date().toISOString(),
+            addedBy: chatId,
+            role: 'admin'
+        };
+        
+        db.admins.push(newAdmin);
+        bot.sendMessage(chatId, `✅ ${newAdmin.firstName} has been added as admin!`, {
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
+                ]
+            }
+        });
+        bot.sendMessage(newAdminId, `🎉 You have been added as an admin to Cheerful Chick Bot! Use /start to see available commands.`);
+        delete db.uploadStates[chatId];
+    } catch (error) {
+        bot.sendMessage(chatId, `❌ Error adding admin: ${error.message}`);
+        delete db.uploadStates[chatId];
+    }
+}
+
+async function handleUserChat(chatId, message) {
+    // Save message
+    const newMessage = {
+        id: db.messages.length + 1,
+        userId: chatId,
+        message: message,
+        type: 'text',
+        timestamp: new Date().toISOString(),
+        read: false
+    };
+    db.messages.push(newMessage);
+    
+    // Forward to all admins
+    const user = db.users.find(u => u.id === chatId);
+    const userName = user ? user.firstName || 'User' : 'User';
+    
+    for (const admin of db.admins) {
+        try {
+            await bot.sendMessage(admin.id, `💬 New message from ${userName} (${chatId}):\n\n${message}`, {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: '💬 Reply', callback_data: `reply_user_${chatId}` }]
+                    ]
+                }
+            });
+        } catch (e) {
+            console.error('Error forwarding message to admin:', e);
+        }
+    }
+    
+    bot.sendMessage(chatId, '✅ Message sent to admin. They will respond shortly.', {
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: '🔙 Back', callback_data: 'user_back' }]
+            ]
+        }
+    });
+    
+    delete db.uploadStates[chatId];
 }
 
 // ============================================
@@ -1586,7 +1486,8 @@ app.post('/api/media/upload', verifyAdmin, upload.single('media'), async (req, r
             filename: file.filename,
             uploadDate: new Date().toISOString(),
             purchases: 0,
-            uploadedBy: parseInt(adminId)
+            uploadedBy: parseInt(adminId),
+            isFree: parseFloat(price) === 0
         };
 
         db.media.push(newMedia);
@@ -1631,6 +1532,34 @@ app.post('/api/payments/create', (req, res) => {
     try {
         const { userId, userName, itemId, amount } = req.body;
         
+        // Check if content is free
+        const media = db.media.find(m => m.id === parseInt(itemId));
+        if (media && media.isFree) {
+            // Auto-purchase free content
+            const purchase = {
+                id: db.purchases.length + 1,
+                userId: parseInt(userId),
+                itemId: parseInt(itemId),
+                amount: 0,
+                purchaseDate: new Date().toISOString(),
+                paymentId: 'free_' + Date.now(),
+                status: 'approved',
+                approvedBy: 'system'
+            };
+            db.purchases.push(purchase);
+            media.isPurchased = true;
+            media.purchasedBy = media.purchasedBy || [];
+            media.purchasedBy.push(parseInt(userId));
+            media.purchases = (media.purchases || 0) + 1;
+            
+            return res.json({
+                success: true,
+                message: 'Free content unlocked!',
+                isFree: true,
+                purchase: purchase
+            });
+        }
+
         // Check if user already purchased this item
         const existingPurchase = db.purchases.find(p => 
             p.userId === parseInt(userId) && p.itemId === parseInt(itemId)
@@ -1657,8 +1586,6 @@ app.post('/api/payments/create', (req, res) => {
         };
 
         db.payments.push(payment);
-
-        const media = db.media.find(m => m.id === parseInt(itemId));
 
         res.status(201).json({
             success: true,
@@ -1787,6 +1714,7 @@ app.get('/api/admin/stats', verifyAdmin, (req, res) => {
     const unreadMessages = db.messages.filter(m => !m.read).length;
     const pendingPayments = db.payments.filter(p => p.status === 'pending_approval').length;
     const totalRevenue = db.purchases.reduce((sum, p) => sum + p.amount, 0);
+    const freeContent = db.media.filter(m => m.isFree).length;
     
     res.json({
         totalUsers,
@@ -1796,7 +1724,8 @@ app.get('/api/admin/stats', verifyAdmin, (req, res) => {
         totalRevenue,
         totalPurchases: db.purchases.length,
         totalMedia: db.media.length,
-        totalAdmins: db.admins.length
+        totalAdmins: db.admins.length,
+        freeContent
     });
 });
 
@@ -1879,6 +1808,7 @@ app.listen(PORT, () => {
     console.log(`👥 Total Admins: ${db.admins.length}`);
     console.log(`👤 Total Users: ${db.users.length}`);
     console.log(`📁 Total Media: ${db.media.length}`);
+    console.log(`💰 Free Content: ${db.media.filter(m => m.isFree).length}`);
     console.log('✅ Server is ready!');
 });
 
