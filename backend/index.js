@@ -151,7 +151,7 @@ if (process.env.BOT_TOKEN) {
                         { text: '📊 Stats', callback_data: 'admin_stats' }
                     ],
                     [
-                        { text: '🖥️ Admin Panel', url: `${process.env.APP_URL || 'https://cheerful-cheek.onrender.com'}/admin` }
+                        { text: '🖥️ Admin Panel', url: `${process.env.API_URL || 'https://cheerful-cheek.onrender.com'}/admin` }
                     ]
                 ]
             }
