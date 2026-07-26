@@ -1,6 +1,7 @@
 const { Telegraf } = require('telegraf');
 const fs = require('fs');
 const path = require('path');
+const axios = require('axios');
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 
@@ -13,82 +14,111 @@ const ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(id => parseInt(id
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || '@KING_OF_ALPHA';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://cheerful-cheek.vercel.app';
 
-const DB_DIR = process.env.DB_DIR || path.join(__dirname, 'database');
-const MEDIA_DB_PATH = path.join(DB_DIR, 'media.json');
-const USERS_DB_PATH = path.join(DB_DIR, 'users.json');
-const PENDING_DB_PATH = path.join(DB_DIR, 'pending.json');
-const PURCHASES_DB_PATH = path.join(DB_DIR, 'purchases.json');
-
 const bot = new Telegraf(BOT_TOKEN);
 
-// ==================== DATABASE HELPERS ====================
-const readDB = (filePath) => {
-    try {
-        if (!fs.existsSync(DB_DIR)) {
-            fs.mkdirSync(DB_DIR, { recursive: true });
-            console.log('📁 Created database directory');
-        }
-        if (!fs.existsSync(filePath)) {
-            const initialData = filePath.includes('media') ? [] : 
-                               filePath.includes('pending') ? [] : {};
-            fs.writeFileSync(filePath, JSON.stringify(initialData, null, 2));
-            return initialData;
-        }
-        const data = fs.readFileSync(filePath, 'utf8');
-        return JSON.parse(data);
-    } catch (error) {
-        console.error(`Error reading ${path.basename(filePath)}:`, error);
-        return filePath.includes('media') ? [] : 
-               filePath.includes('pending') ? [] : {};
-    }
-};
+// ==================== MONGODB IMPORT ====================
+const { MongoClient } = require('mongodb');
+const MONGODB_URI = process.env.MONGODB_URI;
 
-const writeDB = (filePath, data) => {
-    try {
-        if (!fs.existsSync(DB_DIR)) {
-            fs.mkdirSync(DB_DIR, { recursive: true });
-        }
-        fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-    } catch (error) {
-        console.error(`Error writing ${path.basename(filePath)}:`, error);
-    }
-};
+let mediaCollection = null;
+let bucket = null;
 
-const isAdmin = (userId) => ADMIN_IDS.includes(Number(userId));
+async function connectDB() {
+    if (!MONGODB_URI) {
+        console.error('❌ MONGODB_URI is not set!');
+        return false;
+    }
+
+    try {
+        const client = new MongoClient(MONGODB_URI);
+        await client.connect();
+        const db = client.db('premium_gallery');
+        mediaCollection = db.collection('media');
+        const { GridFSBucket } = require('mongodb');
+        bucket = new GridFSBucket(db, { bucketName: 'uploads' });
+        console.log('✅ Bot connected to MongoDB');
+        return true;
+    } catch (error) {
+        console.error('❌ MongoDB connection error:', error);
+        return false;
+    }
+}
 
 // ==================== UPLOAD STATE ====================
 let uploadStates = {};
 
+// ==================== FUNCTION TO SAVE FILE TO GRIDFS ====================
+async function saveFileToGridFS(fileUrl, fileType) {
+    try {
+        console.log(`📥 Downloading file from Telegram: ${fileUrl}`);
+        
+        // Download file from Telegram
+        const response = await axios.get(fileUrl, { 
+            responseType: 'arraybuffer',
+            timeout: 60000
+        });
+        
+        const buffer = Buffer.from(response.data);
+        const filename = `upload_${Date.now()}.${fileType === 'video' ? 'mp4' : 'jpg'}`;
+        
+        console.log(`📤 Uploading to GridFS: ${filename} (${buffer.length} bytes)`);
+        
+        // Upload to GridFS
+        const uploadStream = bucket.openUploadStream(filename, {
+            contentType: fileType === 'video' ? 'video/mp4' : 'image/jpeg',
+            metadata: {
+                uploadedAt: new Date(),
+                type: fileType
+            }
+        });
+        
+        return new Promise((resolve, reject) => {
+            uploadStream.write(buffer);
+            uploadStream.end();
+            
+            uploadStream.on('finish', () => {
+                const fileId = uploadStream.id.toString();
+                const fileUrl = `/api/file/${fileId}`;
+                console.log(`✅ File saved to GridFS: ${fileId}`);
+                resolve({
+                    gridFsId: fileId,
+                    fileUrl: fileUrl,
+                    filename: filename
+                });
+            });
+            
+            uploadStream.on('error', (err) => {
+                console.error('GridFS upload error:', err);
+                reject(err);
+            });
+        });
+        
+    } catch (error) {
+        console.error('Error saving file to GridFS:', error);
+        throw error;
+    }
+}
+
 // ==================== START COMMAND ====================
 bot.command('start', async (ctx) => {
     const userId = ctx.from.id;
-    console.log(`👤 User /start: ${userId} (${ctx.from.username || 'no username'})`);
+    console.log(`👤 User /start: ${userId}`);
     
-    const users = readDB(USERS_DB_PATH);
-    
-    if (!users[userId]) {
-        users[userId] = {
+    const users = await global.userCollection?.findOne({ id: userId });
+    if (!users) {
+        await global.userCollection?.insertOne({
             id: userId,
             username: ctx.from.username || 'Unknown',
             firstName: ctx.from.first_name || 'User',
             registeredAt: new Date().toISOString()
-        };
-        writeDB(USERS_DB_PATH, users);
+        });
     }
     
-    const pending = readDB(PENDING_DB_PATH);
-    const userPending = pending.filter(p => p.userId === userId);
-    const purchases = readDB(PURCHASES_DB_PATH);
-    const userPurchases = purchases[userId] || [];
-    
-    // Build WebApp URL with user data
     const webAppUrl = `${FRONTEND_URL}?userId=${userId}&name=${encodeURIComponent(ctx.from.first_name || 'User')}&username=${encodeURIComponent(ctx.from.username || '')}`;
     
     ctx.reply(
         `👋 Welcome ${ctx.from.first_name || 'User'}!\n\n` +
-        `📸 **Premium Gallery**\n` +
-        `🛒 Your purchases: ${userPurchases.length}\n` +
-        `⏳ Pending approvals: ${userPending.length}\n\n` +
+        `📸 **Premium Gallery**\n\n` +
         `How it works:\n` +
         `1️⃣ Browse media in the gallery\n` +
         `2️⃣ Click "Buy" on any item\n` +
@@ -99,9 +129,7 @@ bot.command('start', async (ctx) => {
             parse_mode: 'Markdown',
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: '🎨 Open Gallery', web_app: { url: webAppUrl } }],
-                    [{ text: '📋 My Purchases', callback_data: 'my_purchases' }],
-                    [{ text: '⏳ Pending Requests', callback_data: 'my_pending' }]
+                    [{ text: '🎨 Open Gallery', web_app: { url: webAppUrl } }]
                 ]
             }
         }
@@ -113,7 +141,7 @@ bot.command('upload', async (ctx) => {
     const userId = ctx.from.id;
     console.log(`👑 Admin upload: ${userId}`);
     
-    if (!isAdmin(userId)) {
+    if (!ADMIN_IDS.includes(Number(userId))) {
         return ctx.reply('⛔ Only admins can upload media.');
     }
     
@@ -136,34 +164,31 @@ bot.command('cancel', async (ctx) => {
     }
 });
 
-// ==================== HANDLE PHOTO UPLOAD (FIXED) ====================
+// ==================== HANDLE PHOTO UPLOAD ====================
 bot.on('photo', async (ctx) => {
     const userId = ctx.from.id;
     console.log(`📸 Photo received from: ${userId}`);
     
-    if (!isAdmin(userId)) return;
+    if (!ADMIN_IDS.includes(Number(userId))) return;
     if (!uploadStates[userId] || uploadStates[userId].step !== 'media') return;
     
     try {
         const photo = ctx.message.photo[ctx.message.photo.length - 1];
-        const fileId = photo.file_id;
+        const file = await ctx.telegram.getFile(photo.file_id);
+        const fileUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${file.file_path}`;
         
-        // Get file path from Telegram
-        const file = await ctx.telegram.getFile(fileId);
-        const filePath = file.file_path;
+        console.log(`📸 Downloading photo from: ${fileUrl}`);
         
-        // Construct the URL properly with bot token
-        const fileUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`;
+        // Download and save to GridFS
+        const result = await saveFileToGridFS(fileUrl, 'photo');
         
-        console.log(`📸 File URL: ${fileUrl}`);
-        
-        uploadStates[userId].fileId = fileId;
-        uploadStates[userId].fileUrl = fileUrl;
+        uploadStates[userId].fileId = result.gridFsId;
+        uploadStates[userId].fileUrl = result.fileUrl;
         uploadStates[userId].type = 'photo';
         uploadStates[userId].step = 'title';
         
         ctx.reply(
-            '✅ **Photo received!**\n\n' +
+            '✅ **Photo saved to MongoDB!**\n\n' +
             '📝 **Step 2/4: Enter Title**\n\n' +
             'Send me the **title** for this content.\n' +
             'Type /cancel to cancel upload.',
@@ -176,35 +201,32 @@ bot.on('photo', async (ctx) => {
     }
 });
 
-// ==================== HANDLE VIDEO UPLOAD (FIXED) ====================
+// ==================== HANDLE VIDEO UPLOAD ====================
 bot.on('video', async (ctx) => {
     const userId = ctx.from.id;
     console.log(`🎬 Video received from: ${userId}`);
     
-    if (!isAdmin(userId)) return;
+    if (!ADMIN_IDS.includes(Number(userId))) return;
     if (!uploadStates[userId] || uploadStates[userId].step !== 'media') return;
     
     try {
         const video = ctx.message.video;
-        const fileId = video.file_id;
+        const file = await ctx.telegram.getFile(video.file_id);
+        const fileUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${file.file_path}`;
         
-        // Get file path from Telegram
-        const file = await ctx.telegram.getFile(fileId);
-        const filePath = file.file_path;
+        console.log(`🎬 Downloading video from: ${fileUrl}`);
         
-        // Construct the URL properly with bot token
-        const fileUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`;
+        // Download and save to GridFS
+        const result = await saveFileToGridFS(fileUrl, 'video');
         
-        console.log(`🎬 File URL: ${fileUrl}`);
-        
-        uploadStates[userId].fileId = fileId;
-        uploadStates[userId].fileUrl = fileUrl;
+        uploadStates[userId].fileId = result.gridFsId;
+        uploadStates[userId].fileUrl = result.fileUrl;
         uploadStates[userId].type = 'video';
         uploadStates[userId].duration = video.duration;
         uploadStates[userId].step = 'title';
         
         ctx.reply(
-            '✅ **Video received!**\n\n' +
+            '✅ **Video saved to MongoDB!**\n\n' +
             '📝 **Step 2/4: Enter Title**\n\n' +
             'Send me the **title** for this content.\n' +
             'Type /cancel to cancel upload.',
@@ -223,7 +245,7 @@ bot.on('text', async (ctx) => {
     const text = ctx.message.text;
     
     if (text.startsWith('/')) return;
-    if (!isAdmin(userId)) return;
+    if (!ADMIN_IDS.includes(Number(userId))) return;
     if (!uploadStates[userId]) return;
     
     const state = uploadStates[userId];
@@ -284,14 +306,11 @@ bot.on('text', async (ctx) => {
         }
         
         try {
-            const mediaDB = readDB(MEDIA_DB_PATH);
-            
-            // Create the media object with proper URL
             const newMedia = {
                 id: `media_${Date.now()}`,
                 type: state.type,
                 fileId: state.fileId,
-                fileUrl: state.fileUrl, // Now using the proper Telegram file URL
+                fileUrl: state.fileUrl,
                 title: state.title,
                 description: state.description || 'No description',
                 price: price,
@@ -303,11 +322,10 @@ bot.on('text', async (ctx) => {
                 uploadedBy: userId
             };
             
-            mediaDB.push(newMedia);
-            writeDB(MEDIA_DB_PATH, mediaDB);
+            await mediaCollection.insertOne(newMedia);
             
             console.log(`✅ Media saved: ${newMedia.id} - ${newMedia.title}`);
-            console.log(`📸 File URL: ${newMedia.fileUrl}`);
+            console.log(`📸 File ID: ${newMedia.fileId}`);
             
             delete uploadStates[userId];
             
@@ -332,7 +350,7 @@ bot.on('text', async (ctx) => {
 // Skip description
 bot.command('skip', async (ctx) => {
     const userId = ctx.from.id;
-    if (!isAdmin(userId)) return;
+    if (!ADMIN_IDS.includes(Number(userId))) return;
     if (!uploadStates[userId]) return;
     
     const state = uploadStates[userId];
@@ -357,252 +375,15 @@ bot.command('skip', async (ctx) => {
     }
 });
 
-// ==================== ADMIN COMMANDS ====================
-
-bot.command('list', async (ctx) => {
-    const userId = ctx.from.id;
-    if (!isAdmin(userId)) return ctx.reply('⛔ Admins only.');
-    
-    const mediaDB = readDB(MEDIA_DB_PATH);
-    
-    if (mediaDB.length === 0) {
-        return ctx.reply('📭 No media uploaded.');
-    }
-    
-    let message = `📸 Media List (${mediaDB.length} items)\n\n`;
-    mediaDB.slice(-10).reverse().forEach((item, index) => {
-        const priceText = item.isFree ? 'FREE' : `$${item.price}`;
-        message += `${index + 1}. ${item.type.toUpperCase()} - ${item.title}\n`;
-        message += `   💰 ${priceText} | 🛒 ${item.purchases || 0} sold\n`;
-        message += `   🆔 ${item.id}\n`;
-        message += `   📎 ${item.fileUrl}\n\n`;
-    });
-    
-    ctx.reply(message);
-});
-
-bot.command('delete', async (ctx) => {
-    const userId = ctx.from.id;
-    if (!isAdmin(userId)) return ctx.reply('⛔ Admins only.');
-    
-    const args = ctx.message.text.split(' ');
-    if (args.length < 2) {
-        return ctx.reply('Usage: /delete <media_id>');
-    }
-    
-    const mediaId = args[1];
-    let mediaDB = readDB(MEDIA_DB_PATH);
-    const filtered = mediaDB.filter(item => item.id !== mediaId);
-    
-    if (filtered.length === mediaDB.length) {
-        return ctx.reply('❌ Media not found.');
-    }
-    
-    writeDB(MEDIA_DB_PATH, filtered);
-    ctx.reply('✅ Media deleted successfully!');
-});
-
-// ==================== PENDING APPROVALS ====================
-
-bot.command('pending', async (ctx) => {
-    const userId = ctx.from.id;
-    if (!isAdmin(userId)) return ctx.reply('⛔ Admins only.');
-    
-    const pending = readDB(PENDING_DB_PATH);
-    
-    if (pending.length === 0) {
-        return ctx.reply('📭 No pending approvals.');
-    }
-    
-    let message = `⏳ Pending Approvals (${pending.length})\n\n`;
-    pending.slice(-10).reverse().forEach((item, index) => {
-        message += `${index + 1}. User: ${item.username || 'Unknown'}\n`;
-        message += `   Media: ${item.mediaTitle}\n`;
-        message += `   Amount: $${item.amount}\n`;
-        message += `   ID: ${item.id}\n\n`;
-    });
-    
-    ctx.reply(message);
-});
-
-bot.command('approve', async (ctx) => {
-    const userId = ctx.from.id;
-    if (!isAdmin(userId)) return ctx.reply('⛔ Admins only.');
-    
-    const args = ctx.message.text.split(' ');
-    if (args.length < 2) {
-        return ctx.reply('Usage: /approve <pending_id>\n\nGet pending IDs from /pending');
-    }
-    
-    const pendingId = args[1];
-    let pending = readDB(PENDING_DB_PATH);
-    const request = pending.find(p => p.id === pendingId);
-    
-    if (!request) {
-        return ctx.reply('❌ Pending request not found.');
-    }
-    
-    // Add to purchases
-    const purchases = readDB(PURCHASES_DB_PATH);
-    if (!purchases[request.userId]) {
-        purchases[request.userId] = [];
-    }
-    if (!purchases[request.userId].includes(request.mediaId)) {
-        purchases[request.userId].push(request.mediaId);
-    }
-    writeDB(PURCHASES_DB_PATH, purchases);
-    
-    // Update media purchase count
-    const mediaDB = readDB(MEDIA_DB_PATH);
-    const media = mediaDB.find(m => m.id === request.mediaId);
-    if (media) {
-        media.purchases = (media.purchases || 0) + 1;
-        writeDB(MEDIA_DB_PATH, mediaDB);
-    }
-    
-    // Remove from pending
-    pending = pending.filter(p => p.id !== pendingId);
-    writeDB(PENDING_DB_PATH, pending);
-    
-    ctx.reply(`✅ Approved!\n\nUser: ${request.username || 'Unknown'}\nMedia: ${request.mediaTitle}`);
-    
-    try {
-        await bot.telegram.sendMessage(
-            request.userId,
-            `✅ **Purchase Approved!**\n\n` +
-            `📌 Media: *${request.mediaTitle}*\n` +
-            `💰 Amount: $${request.amount}\n\n` +
-            `You can now view it in the gallery.`,
-            { parse_mode: 'Markdown' }
-        );
-    } catch (error) {
-        console.error('Failed to notify user:', error);
-    }
-});
-
-bot.command('reject', async (ctx) => {
-    const userId = ctx.from.id;
-    if (!isAdmin(userId)) return ctx.reply('⛔ Admins only.');
-    
-    const args = ctx.message.text.split(' ');
-    if (args.length < 2) {
-        return ctx.reply('Usage: /reject <pending_id>\n\nGet pending IDs from /pending');
-    }
-    
-    const pendingId = args[1];
-    let pending = readDB(PENDING_DB_PATH);
-    const request = pending.find(p => p.id === pendingId);
-    
-    if (!request) {
-        return ctx.reply('❌ Pending request not found.');
-    }
-    
-    pending = pending.filter(p => p.id !== pendingId);
-    writeDB(PENDING_DB_PATH, pending);
-    
-    ctx.reply(`❌ Rejected: ${request.mediaTitle}`);
-    
-    try {
-        await bot.telegram.sendMessage(
-            request.userId,
-            `❌ **Purchase Rejected**\n\n` +
-            `📌 Media: *${request.mediaTitle}*\n\n` +
-            `Please contact admin ${ADMIN_USERNAME} for details.`,
-            { parse_mode: 'Markdown' }
-        );
-    } catch (error) {
-        console.error('Failed to notify user:', error);
-    }
-});
-
-bot.command('stats', async (ctx) => {
-    const userId = ctx.from.id;
-    if (!isAdmin(userId)) return ctx.reply('⛔ Admins only.');
-    
-    const mediaDB = readDB(MEDIA_DB_PATH);
-    const purchases = readDB(PURCHASES_DB_PATH);
-    const pending = readDB(PENDING_DB_PATH);
-    
-    let totalRevenue = 0;
-    let totalPurchases = 0;
-    
-    mediaDB.forEach(media => {
-        const count = media.purchases || 0;
-        if (!media.isFree) {
-            totalRevenue += count * media.price;
-        }
-        totalPurchases += count;
-    });
-    
-    const uniqueUsers = Object.keys(purchases).length;
-    const freeItems = mediaDB.filter(m => m.isFree).length;
-    const paidItems = mediaDB.filter(m => !m.isFree).length;
-    
-    ctx.reply(
-        `📊 **Revenue Stats**\n\n` +
-        `💰 Total Revenue: $${totalRevenue.toFixed(2)}\n` +
-        `🛒 Total Purchases: ${totalPurchases}\n` +
-        `👤 Unique Users: ${uniqueUsers}\n` +
-        `📸 Total Media: ${mediaDB.length}\n` +
-        `🆓 Free Items: ${freeItems}\n` +
-        `💎 Paid Items: ${paidItems}\n` +
-        `⏳ Pending Approvals: ${pending.length}`,
-        { parse_mode: 'Markdown' }
-    );
-});
-
-// ==================== MY PURCHASES ====================
-bot.action('my_purchases', async (ctx) => {
-    const userId = ctx.from.id;
-    const purchases = readDB(PURCHASES_DB_PATH);
-    const userPurchases = purchases[userId] || [];
-    
-    if (userPurchases.length === 0) {
-        return ctx.reply('📭 You haven\'t purchased any content yet.');
-    }
-    
-    const mediaDB = readDB(MEDIA_DB_PATH);
-    const purchasedMedia = mediaDB.filter(m => userPurchases.includes(m.id));
-    
-    let message = `📋 Your Purchases (${purchasedMedia.length})\n\n`;
-    purchasedMedia.forEach((item, index) => {
-        const priceText = item.isFree ? 'FREE' : `$${item.price}`;
-        message += `${index + 1}. ${item.type.toUpperCase()} - ${item.title}\n`;
-        message += `   💰 ${priceText}\n\n`;
-    });
-    
-    ctx.reply(message);
-});
-
-bot.action('my_pending', async (ctx) => {
-    const userId = ctx.from.id;
-    const pending = readDB(PENDING_DB_PATH);
-    const userPending = pending.filter(p => p.userId === userId);
-    
-    if (userPending.length === 0) {
-        return ctx.reply('⏳ No pending requests.');
-    }
-    
-    let message = `⏳ Your Pending Requests (${userPending.length})\n\n`;
-    userPending.forEach((item, index) => {
-        message += `${index + 1}. ${item.mediaTitle}\n`;
-        message += `   💰 $${item.amount}\n`;
-        message += `   Status: Waiting for approval\n\n`;
-    });
-    
-    ctx.reply(message);
-});
-
 // ==================== START BOT ====================
 async function startBot() {
     try {
+        // Connect to MongoDB first
+        await connectDB();
+        
         const me = await bot.telegram.getMe();
         console.log(`🤖 Bot connected: @${me.username}`);
-        console.log(`📌 Bot ID: ${me.id}`);
         console.log(`👑 Admins: ${ADMIN_IDS.length > 0 ? ADMIN_IDS.join(', ') : 'None set!'}`);
-        
-        const mediaDB = readDB(MEDIA_DB_PATH);
-        console.log(`📸 Total media in DB: ${mediaDB.length}`);
         
         await bot.launch();
         console.log('✅ Bot is running successfully!');
@@ -617,13 +398,6 @@ process.once('SIGTERM', () => bot.stop('SIGTERM'));
 
 module.exports = { 
     bot, 
-    readDB, 
-    writeDB, 
-    MEDIA_DB_PATH, 
-    USERS_DB_PATH, 
-    PENDING_DB_PATH, 
-    PURCHASES_DB_PATH, 
-    ADMIN_IDS,
     startBot,
-    isAdmin
+    ADMIN_IDS
 };
