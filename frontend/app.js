@@ -55,12 +55,11 @@ function init() {
     
     console.log('✅ Mini App initialized');
     console.log('📡 Backend:', BACKEND_URL);
-    console.log('👤 User:', userData);
+    console.log('👤 User:', userId);
     
     setupEventListeners();
     loadApp();
     
-    // Auto-refresh every 10 seconds
     refreshInterval = setInterval(() => {
         if (document.getElementById('gallerySection').classList.contains('active')) {
             refreshData();
@@ -337,18 +336,29 @@ function renderGallery(media) {
     grid.innerHTML = media.map((item, index) => {
         const isPurchased = item.isPurchased || false;
         const isPending = item.isPending || false;
+        const isFree = item.isFree || false;
         
         let badgeHTML = '';
         let actionsHTML = '';
         let previewContent = '';
         
-        if (isPurchased) {
-            badgeHTML = `<div class="badge badge-purchased">✅ Owned</div>`;
+        // If free and not purchased, auto-unlock
+        const shouldShowContent = isPurchased || isFree;
+        
+        if (shouldShowContent) {
+            // Show the actual photo/video (Free or Purchased)
+            if (isFree && !isPurchased) {
+                badgeHTML = `<div class="badge badge-free">🎉 FREE</div>`;
+            } else {
+                badgeHTML = `<div class="badge badge-purchased">✅ Owned</div>`;
+            }
+            
             actionsHTML = `
                 <button class="btn-action btn-view" onclick="event.stopPropagation(); viewMedia('${item.id}')">
                     👁️ View
                 </button>
             `;
+            
             if (item.type === 'video') {
                 previewContent = `
                     <video muted preload="metadata" playsinline style="width:100%; height:100%; object-fit:cover;">
@@ -360,10 +370,14 @@ function renderGallery(media) {
                     <img src="${item.fileUrl}" alt="${item.title}" loading="lazy" style="width:100%; height:100%; object-fit:cover;" />
                 `;
             }
+            
         } else if (isPending) {
+            // PENDING - Show lock with pending badge
             badgeHTML = `<div class="badge badge-pending">⏳ Pending</div>`;
             actionsHTML = `
-                <button class="btn-action btn-pending" disabled>⏳ Waiting</button>
+                <button class="btn-action btn-pending" disabled>
+                    ⏳ Waiting
+                </button>
             `;
             previewContent = `
                 <div class="locked-content">
@@ -372,11 +386,13 @@ function renderGallery(media) {
                     <span class="lock-price">$${item.price || 5.00}</span>
                 </div>
             `;
+            
         } else {
-            const priceText = item.isFree ? 'FREE 🎉' : `$${item.price || 5.00}`;
+            // LOCKED - Show lock with buy button
+            const priceText = `$${item.price || 5.00}`;
             badgeHTML = `<div class="badge badge-price">${priceText}</div>`;
             actionsHTML = `
-                <button class="btn-action btn-buy" onclick="event.stopPropagation(); openPurchaseModal('${item.id}')">
+                <button class="btn-action btn-buy" onclick="openPurchaseModal('${item.id}')">
                     💰 Buy
                 </button>
             `;
@@ -390,7 +406,7 @@ function renderGallery(media) {
         }
         
         return `
-            <div class="media-card" style="animation-delay: ${index * 0.05}s">
+            <div class="media-card" style="animation-delay: ${index * 0.05}s" data-id="${item.id}">
                 <div class="media-wrapper">
                     ${previewContent}
                     ${badgeHTML}
@@ -432,44 +448,66 @@ function applyFilters() {
 }
 
 // ==================== PURCHASE MODAL ====================
-async function openPurchaseModal(mediaId) {
+function openPurchaseModal(mediaId) {
+    console.log('💰 Opening purchase modal for:', mediaId);
+    
     const media = allMedia.find(m => m.id === mediaId);
     if (!media) {
         showToast('Content not found', 'error');
         return;
     }
     
+    // If free, just unlock and view
+    if (media.isFree) {
+        showToast('🎉 This content is FREE! Enjoy!', 'success');
+        viewMedia(mediaId);
+        return;
+    }
+    
     currentModalMedia = media;
     pendingMediaId = mediaId;
     
-    try {
-        const response = await fetch(`${BACKEND_URL}/api/pending-status/${userId}/${mediaId}`);
-        const result = await response.json();
-        if (result.isPending) {
-            showToast('⏳ Already pending approval', 'pending');
-            return;
-        }
-    } catch (error) {
-        console.error('Pending check error:', error);
-    }
-    
-    document.getElementById('modalTitle').textContent = media.title || 'Untitled';
-    document.getElementById('modalDescription').textContent = media.description || 'No description';
-    document.getElementById('modalPrice').textContent = (media.price || 5.00).toFixed(2);
-    document.getElementById('modalPaypalEmail').textContent = ADMIN_PAYPAL_EMAIL;
-    
-    const preview = document.getElementById('modalPreview');
-    preview.className = 'modal-preview locked-preview';
-    preview.innerHTML = `
-        <div class="locked-preview-content">
-            <div class="lock-icon-large">🔒</div>
-            <p>Premium Content</p>
-            <p class="lock-subtitle">${media.isFree ? 'FREE 🎉' : '$' + (media.price || 5.00).toFixed(2)}</p>
-        </div>
-    `;
-    
-    document.getElementById('purchaseModal').style.display = 'flex';
-    document.body.style.overflow = 'hidden';
+    // Check if already pending
+    fetch(`${BACKEND_URL}/api/pending-status/${userId}/${mediaId}`)
+        .then(res => res.json())
+        .then(result => {
+            if (result.isPending) {
+                showToast('⏳ Already pending approval', 'pending');
+                return;
+            }
+            
+            // Set modal content
+            document.getElementById('modalTitle').textContent = media.title || 'Untitled';
+            document.getElementById('modalDescription').textContent = media.description || 'No description';
+            document.getElementById('modalPrice').textContent = (media.price || 5.00).toFixed(2);
+            document.getElementById('modalPaypalEmail').textContent = ADMIN_PAYPAL_EMAIL;
+            document.getElementById('modalLockPrice').textContent = '$' + (media.price || 5.00).toFixed(2);
+            
+            // LOCKED preview - no actual media shown
+            const preview = document.getElementById('modalPreview');
+            preview.className = 'modal-preview locked-preview';
+            preview.innerHTML = `
+                <div class="locked-preview-content">
+                    <div class="lock-icon-large">🔒</div>
+                    <p>Premium Content</p>
+                    <p class="lock-subtitle">$${(media.price || 5.00).toFixed(2)}</p>
+                </div>
+            `;
+            
+            // Show the modal
+            document.getElementById('purchaseModal').style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        })
+        .catch(error => {
+            console.error('Pending check error:', error);
+            // Still show the modal even if check fails
+            document.getElementById('modalTitle').textContent = media.title || 'Untitled';
+            document.getElementById('modalDescription').textContent = media.description || 'No description';
+            document.getElementById('modalPrice').textContent = (media.price || 5.00).toFixed(2);
+            document.getElementById('modalPaypalEmail').textContent = ADMIN_PAYPAL_EMAIL;
+            document.getElementById('purchaseModal').style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        });
 }
 
 function closePurchaseModal() {
@@ -479,6 +517,7 @@ function closePurchaseModal() {
 
 // ==================== SCREENSHOT UPLOAD ====================
 function openScreenshotUpload() {
+    console.log('📸 Opening screenshot upload');
     closePurchaseModal();
     document.getElementById('screenshotPaypalEmail').textContent = ADMIN_PAYPAL_EMAIL;
     document.getElementById('screenshotModal').style.display = 'flex';
@@ -495,6 +534,8 @@ function closeScreenshotModal() {
 
 // ==================== SUBMIT SCREENSHOT ====================
 async function submitScreenshot() {
+    console.log('📤 Submitting screenshot');
+    
     if (!selectedScreenshot) {
         showToast('Please select a screenshot first', 'error');
         return;
@@ -529,6 +570,7 @@ async function submitScreenshot() {
         });
         
         const result = await response.json();
+        console.log('📤 Submit result:', result);
         
         if (result.success) {
             closeScreenshotModal();
@@ -548,6 +590,8 @@ async function submitScreenshot() {
 
 // ==================== VIEW MEDIA ====================
 async function viewMedia(mediaId) {
+    console.log('👁️ Viewing media:', mediaId);
+    
     try {
         const response = await fetch(`${BACKEND_URL}/api/media/${mediaId}?userId=${userId}`);
         const result = await response.json();
@@ -559,7 +603,21 @@ async function viewMedia(mediaId) {
         
         const media = result.data;
         
-        if (!media.isPurchased) {
+        // If free, auto-add to purchases
+        if (media.isFree && !media.isPurchased) {
+            // Auto-purchase free content
+            const autoPurchase = await fetch(`${BACKEND_URL}/api/auto-purchase-free`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, mediaId })
+            });
+            const autoResult = await autoPurchase.json();
+            if (autoResult.success) {
+                await refreshData();
+            }
+        }
+        
+        if (!media.isPurchased && !media.isFree) {
             showToast('🔒 Purchase this content to view', 'error');
             return;
         }
@@ -569,6 +627,7 @@ async function viewMedia(mediaId) {
             content.innerHTML = `
                 <video controls autoplay playsinline style="max-width:100%; max-height:70vh; border-radius:8px;">
                     <source src="${media.fileUrl}" type="video/mp4">
+                    Your browser does not support videos.
                 </video>
             `;
         } else {
@@ -622,6 +681,7 @@ function showLoading(show) {
 
 // ==================== INIT ====================
 document.addEventListener('DOMContentLoaded', init);
+
 document.addEventListener('visibilitychange', () => {
     if (!document.hidden && isInitialized) {
         refreshData();
