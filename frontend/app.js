@@ -60,6 +60,7 @@ function init() {
     isInitialized = true;
     
     console.log('🔍 Initializing Premium Gallery...');
+    console.log('📡 Backend URL:', BACKEND_URL);
     
     // Check for Telegram WebApp
     if (window.Telegram && window.Telegram.WebApp) {
@@ -339,7 +340,7 @@ async function loadApp() {
             renderGallery(allMedia);
             showToast('Using cached content', 'info');
         } else {
-            showToast('Failed to load content', 'error');
+            showToast('Failed to load content. Please refresh.', 'error');
         }
     } finally {
         showLoading(false);
@@ -349,12 +350,23 @@ async function loadApp() {
 // ==================== LOAD MEDIA ====================
 async function loadMedia() {
     try {
-        const response = await fetch(`${BACKEND_URL}/media?userId=${encodeURIComponent(userId)}`, {
+        const url = `${BACKEND_URL}/media?userId=${encodeURIComponent(userId)}`;
+        console.log('📡 Fetching media from:', url);
+        
+        const response = await fetch(url, {
             headers: {
                 'Cache-Control': 'no-cache'
             }
         });
+        
+        console.log('📡 Response status:', response.status);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const result = await response.json();
+        console.log('📡 Response data:', result);
         
         if (result.success) {
             allMedia = result.data || [];
