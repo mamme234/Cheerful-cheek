@@ -75,9 +75,7 @@ app.get('/api/fix-media', async (req, res) => {
         let updated = 0;
         
         mediaDB.forEach(item => {
-            // Fix: Add isFree field if missing
             if (item.isFree === undefined) {
-                // If price is 0 or '0' or 'free', set isFree to true
                 if (item.price === 0 || item.price === '0' || item.price === 'free' || item.price === null) {
                     item.isFree = true;
                     item.price = 0;
@@ -87,7 +85,6 @@ app.get('/api/fix-media', async (req, res) => {
                 updated++;
             }
             
-            // Fix: Ensure price is a number
             if (typeof item.price === 'string') {
                 item.price = parseFloat(item.price) || 0;
             }
@@ -166,7 +163,6 @@ app.get('/api/media', (req, res) => {
         const mediaDB = readDB(MEDIA_DB_PATH);
         const purchases = readDB(PURCHASES_DB_PATH);
         
-        // Ensure all media has isFree field
         let updated = false;
         mediaDB.forEach(item => {
             if (item.isFree === undefined) {
@@ -279,7 +275,6 @@ app.post('/api/auto-purchase-free', async (req, res) => {
             });
         }
         
-        // Check if it's free
         if (!media.isFree) {
             return res.status(400).json({
                 success: false,
@@ -287,7 +282,6 @@ app.post('/api/auto-purchase-free', async (req, res) => {
             });
         }
         
-        // Check if already purchased
         const purchases = readDB(PURCHASES_DB_PATH);
         if (purchases[userId]?.includes(mediaId)) {
             return res.status(400).json({
@@ -296,14 +290,12 @@ app.post('/api/auto-purchase-free', async (req, res) => {
             });
         }
         
-        // Add to purchases
         if (!purchases[userId]) {
             purchases[userId] = [];
         }
         purchases[userId].push(mediaId);
         writeDB(PURCHASES_DB_PATH, purchases);
         
-        // Update media purchase count
         media.purchases = (media.purchases || 0) + 1;
         writeDB(MEDIA_DB_PATH, mediaDB);
         
@@ -348,7 +340,6 @@ app.post('/api/request-purchase', async (req, res) => {
             });
         }
         
-        // Check if already purchased
         const purchases = readDB(PURCHASES_DB_PATH);
         if (purchases[userId]?.includes(mediaId)) {
             return res.status(400).json({
@@ -357,7 +348,6 @@ app.post('/api/request-purchase', async (req, res) => {
             });
         }
         
-        // Check if already pending
         const pending = readDB(PENDING_DB_PATH);
         const existing = pending.find(p => p.userId === userId && p.mediaId === mediaId);
         if (existing) {
@@ -367,11 +357,9 @@ app.post('/api/request-purchase', async (req, res) => {
             });
         }
         
-        // Get user info
         const users = readDB(USERS_DB_PATH);
         const user = users[userId] || { username: 'Unknown', firstName: 'User' };
         
-        // Create pending request
         const request = {
             id: `pending_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
             userId: userId,
@@ -389,7 +377,6 @@ app.post('/api/request-purchase', async (req, res) => {
         pending.push(request);
         writeDB(PENDING_DB_PATH, pending);
         
-        // Notify all admins
         for (const adminId of ADMIN_IDS) {
             try {
                 const { bot } = require('./bot');
@@ -404,11 +391,15 @@ app.post('/api/request-purchase', async (req, res) => {
                     `Use /reject ${request.id} to reject`;
                 
                 if (screenshot) {
-                    await bot.telegram.sendPhoto(
-                        adminId,
-                        { source: Buffer.from(screenshot.split(',')[1], 'base64') },
-                        { caption: message, parse_mode: 'Markdown' }
-                    );
+                    try {
+                        await bot.telegram.sendPhoto(
+                            adminId,
+                            { source: Buffer.from(screenshot.split(',')[1], 'base64') },
+                            { caption: message, parse_mode: 'Markdown' }
+                        );
+                    } catch (photoError) {
+                        await bot.telegram.sendMessage(adminId, message, { parse_mode: 'Markdown' });
+                    }
                 } else {
                     await bot.telegram.sendMessage(adminId, message, { parse_mode: 'Markdown' });
                 }
