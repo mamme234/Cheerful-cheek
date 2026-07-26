@@ -324,7 +324,7 @@ app.post('/api/auto-purchase-free', (req, res) => {
 });
 
 // ==================== REQUEST PURCHASE ====================
-app.post('/api/request-purchase', (req, res) => {
+app.post('/api/request-purchase', async (req, res) => {
     try {
         const { userId, mediaId, screenshot, filename } = req.body;
         
@@ -396,21 +396,11 @@ app.post('/api/request-purchase', (req, res) => {
                     `Use /approve ${request.id} to approve\n` +
                     `Use /reject ${request.id} to reject`;
                 
-                if (screenshot) {
-                    try {
-                        await bot.telegram.sendPhoto(
-                            adminId,
-                            { source: Buffer.from(screenshot.split(',')[1], 'base64') },
-                            { caption: message, parse_mode: 'Markdown' }
-                        );
-                    } catch {
-                        await bot.telegram.sendMessage(adminId, message, { parse_mode: 'Markdown' });
-                    }
-                } else {
-                    await bot.telegram.sendMessage(adminId, message, { parse_mode: 'Markdown' });
-                }
+                // Send message without await since we're in a for loop
+                bot.telegram.sendMessage(adminId, message, { parse_mode: 'Markdown' })
+                    .then(() => console.log(`✅ Admin ${adminId} notified`))
+                    .catch((err) => console.error(`Failed to notify admin ${adminId}:`, err.message));
                 
-                console.log(`✅ Admin ${adminId} notified`);
             } catch (error) {
                 console.error(`Failed to notify admin ${adminId}:`, error.message);
             }
