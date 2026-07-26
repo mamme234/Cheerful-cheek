@@ -15,7 +15,6 @@ let pendingMediaId = null;
 
 // ==================== ADMIN PAYPAL ====================
 const ADMIN_PAYPAL_EMAIL = 'lenabotrel65@outlook.com';
-const ADMIN_PAYPAL_LINK = 'https://paypal.me/yourusername';
 
 // ==================== INITIALIZATION ====================
 function init() {
@@ -220,6 +219,8 @@ async function loadMedia() {
         
         if (result.success) {
             allMedia = result.data || [];
+            console.log('📸 Media loaded:', allMedia.length, 'items');
+            console.log('📸 First item:', allMedia[0]);
             renderGallery(allMedia);
         }
     } catch (error) {
@@ -313,49 +314,76 @@ function renderGallery(media) {
         return;
     }
     
+    console.log('🎨 Rendering gallery with', media.length, 'items');
+    
     grid.innerHTML = media.map((item, index) => {
         const isPurchased = item.isPurchased || false;
         const isPending = item.isPending || false;
         
+        console.log(`Item ${index}: ${item.title}, Purchased: ${isPurchased}, Type: ${item.type}`);
+        
         let badgeHTML = '';
         let actionsHTML = '';
+        let previewContent = '';
+        
+        // Determine if content should be shown
+        const canView = isPurchased;
         
         if (isPurchased) {
+            // OWNED - Show the actual photo/video
             badgeHTML = `<div class="badge badge-purchased">✅ Owned</div>`;
             actionsHTML = `
                 <button class="btn-action btn-view" onclick="event.stopPropagation(); viewMedia('${item.id}')">
                     👁️ View
                 </button>
             `;
+            
+            // Show actual media
+            if (item.type === 'video') {
+                previewContent = `
+                    <video muted preload="metadata" playsinline style="width:100%; height:100%; object-fit:cover;">
+                        <source src="${item.fileUrl}" type="video/mp4">
+                    </video>
+                `;
+            } else {
+                previewContent = `
+                    <img src="${item.fileUrl}" alt="${item.title}" loading="lazy" style="width:100%; height:100%; object-fit:cover;" />
+                `;
+            }
+            
         } else if (isPending) {
+            // PENDING - Show lock with pending badge
             badgeHTML = `<div class="badge badge-pending">⏳ Pending</div>`;
             actionsHTML = `
                 <button class="btn-action btn-pending" disabled>
                     ⏳ Waiting
                 </button>
             `;
+            previewContent = `
+                <div class="locked-content">
+                    <span class="lock-icon">🔒</span>
+                    <span class="lock-text">Pending Approval</span>
+                    <span class="lock-price">$${item.price || 5.00}</span>
+                </div>
+            `;
+            
         } else {
-            const priceText = item.isFree ? 'FREE' : `$${item.price || 5.00}`;
+            // LOCKED - Show lock with buy button
+            const priceText = item.isFree ? 'FREE 🎉' : `$${item.price || 5.00}`;
             badgeHTML = `<div class="badge badge-price">${priceText}</div>`;
             actionsHTML = `
                 <button class="btn-action btn-buy" onclick="event.stopPropagation(); openPurchaseModal('${item.id}')">
                     💰 Buy
                 </button>
             `;
+            previewContent = `
+                <div class="locked-content">
+                    <span class="lock-icon">🔒</span>
+                    <span class="lock-text">Premium Content</span>
+                    <span class="lock-price">${priceText}</span>
+                </div>
+            `;
         }
-        
-        const previewContent = isPurchased ? `
-            ${item.type === 'video' 
-                ? `<video src="${item.fileUrl}" muted preload="metadata" playsinline></video>`
-                : `<img src="${item.fileUrl}" alt="${item.title}" loading="lazy" />`
-            }
-        ` : `
-            <div class="locked-content">
-                <span class="lock-icon">🔒</span>
-                <span class="lock-text">Premium Content</span>
-                ${item.isFree ? '<span class="lock-price">FREE 🎉</span>' : `<span class="lock-price">$${item.price || 5.00}</span>`}
-            </div>
-        `;
         
         return `
             <div class="media-card" style="animation-delay: ${index * 0.05}s">
@@ -421,7 +449,6 @@ async function openPurchaseModal(mediaId) {
         console.error('Pending check error:', error);
     }
     
-    // Set modal content
     document.getElementById('modalTitle').textContent = media.title || 'Untitled';
     document.getElementById('modalDescription').textContent = media.description || 'No description';
     document.getElementById('modalPrice').textContent = (media.price || 5.00).toFixed(2);
@@ -438,7 +465,6 @@ async function openPurchaseModal(mediaId) {
         </div>
     `;
     
-    // Show the modal
     document.getElementById('purchaseModal').style.display = 'flex';
     document.body.style.overflow = 'hidden';
 }
