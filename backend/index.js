@@ -1,69 +1,74 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const fs = require('fs');
-const path = require('path');
-
+const { MongoClient, GridFSBucket } = require('mongodb');
 const { startBot, ADMIN_IDS } = require('./bot');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ==================== DATABASE SETUP ====================
-const DB_DIR = process.env.DB_DIR || path.join(__dirname, 'database');
+// ==================== MONGODB SETUP ====================
+const MONGODB_URI = process.env.MONGODB_URI;
+let db = null;
+let mediaCollection = null;
+let usersCollection = null;
+let pendingCollection = null;
+let purchasesCollection = null;
+let bucket = null;
 
-if (!fs.existsSync(DB_DIR)) {
-    fs.mkdirSync(DB_DIR, { recursive: true });
-    console.log(`📁 Created database directory: ${DB_DIR}`);
-}
-
-const MEDIA_DB_PATH = path.join(DB_DIR, 'media.json');
-const USERS_DB_PATH = path.join(DB_DIR, 'users.json');
-const PENDING_DB_PATH = path.join(DB_DIR, 'pending.json');
-const PURCHASES_DB_PATH = path.join(DB_DIR, 'purchases.json');
-
-// ==================== DATABASE HELPERS ====================
-const readDB = (filePath, defaultData) => {
-    try {
-        if (!fs.existsSync(filePath)) {
-            fs.writeFileSync(filePath, JSON.stringify(defaultData, null, 2));
-            console.log(`📄 Created new file: ${path.basename(filePath)}`);
-            return defaultData;
-        }
-        const data = fs.readFileSync(filePath, 'utf8');
-        return JSON.parse(data);
-    } catch (error) {
-        console.error(`Error reading ${path.basename(filePath)}:`, error);
-        return defaultData;
+async function connectDB() {
+    if (!MONGODB_URI) {
+        console.error('❌ MONGODB_URI is not set in environment variables!');
+        console.log('📌 Get your MongoDB URI from: https://cloud.mongodb.com');
+        process.exit(1);
     }
-};
 
-const writeDB = (filePath, data) => {
     try {
-        fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-        console.log(`💾 Saved to ${path.basename(filePath)}`);
+        const client = new MongoClient(MONGODB_URI);
+        await client.connect();
+        console.log('✅ Connected to MongoDB Atlas');
+        
+        db = client.db('premium_gallery');
+        mediaCollection = db.collection('media');
+        usersCollection = db.collection('users');
+        pendingCollection = db.collection('pending');
+        purchasesCollection = db.collection('purchases');
+        
+        // Setup GridFS for file storage
+        bucket = new GridFSBucket(db, { bucketName: 'uploads' });
+        
+        // Create indexes
+        await mediaCollection.createIndex({ id: 1 }, { unique: true });
+        await usersCollection.createIndex({ id: 1 }, { unique: true });
+        await pendingCollection.createIndex({ id: 1 }, { unique: true });
+        
+        console.log('✅ Database collections ready');
+        console.log('✅ GridFS ready for file storage');
+        
+        // Add sample data if empty
+        const count = await mediaCollection.countDocuments();
+        if (count === 0) {
+            console.log('📸 Adding sample data...');
+            await addSampleData();
+        }
+        
         return true;
     } catch (error) {
-        console.error(`Error writing ${path.basename(filePath)}:`, error);
+        console.error('❌ MongoDB connection error:', error);
         return false;
     }
-};
+}
 
-// ==================== INITIALIZE WITH SAMPLE DATA ====================
-function initializeDatabase() {
-    console.log('🔧 Initializing database...');
-    
-    let mediaDB = readDB(MEDIA_DB_PATH, []);
-    if (mediaDB.length === 0) {
-        console.log('📸 Adding sample media...');
-        mediaDB = [
+async function addSampleData() {
+    try {
+        const sampleMedia = [
             {
                 id: `media_${Date.now()}_1`,
                 type: 'photo',
                 fileId: 'sample_1',
                 fileUrl: 'https://picsum.photos/400/400?random=1',
                 title: '🎉 Welcome to Premium Gallery',
-                description: 'This is a sample photo. Upload your own content using /upload',
+                description: 'Sample content - use /upload to add your own',
                 price: 5.00,
                 isFree: false,
                 date: new Date().toISOString(),
@@ -77,8 +82,8 @@ function initializeDatabase() {
                 type: 'photo',
                 fileId: 'sample_2',
                 fileUrl: 'https://picsum.photos/400/400?random=2',
-                title: '🎁 Free Sample Content',
-                description: 'This content is free for everyone to enjoy!',
+                title: '🎁 Free Sample',
+                description: 'This content is free!',
                 price: 0,
                 isFree: true,
                 date: new Date().toISOString(),
@@ -86,25 +91,13 @@ function initializeDatabase() {
                 purchases: 0,
                 approved: true,
                 uploadedBy: 123456789
-            },
-            {
-                id: `media_${Date.now()}_3`,
-                type: 'photo',
-                fileId: 'sample_3',
-                fileUrl: 'https://picsum.photos/400/400?random=3',
-                title: '🔒 Premium Content',
-                description: 'Purchase this to unlock premium content',
-                price: 3.00,
-                isFree: false,
-                date: new Date().toISOString(),
-                views: 0,
-                purchases: 0,
-                approved: true,
-                uploadedBy: 123456789
             }
         ];
-        writeDB(MEDIA_DB_PATH, mediaDB);
-        console.log(`✅ Added ${mediaDB.length} sample items`);
+        
+        await mediaCollection.insertMany(sampleMedia);
+        console.log(`✅ Added ${sampleMedia.length} sample items to database`);
+    } catch (error) {
+        console.error('Error adding sample data:', error);
     }
 }
 
@@ -140,40 +133,45 @@ app.get('/', (req, res) => {
 });
 
 // ==================== HEALTH CHECK ====================
-app.get('/api/health', (req, res) => {
-    const mediaDB = readDB(MEDIA_DB_PATH, []);
-    res.json({
-        status: 'OK',
-        timestamp: new Date().toISOString(),
-        mediaCount: mediaDB.length,
-        database: 'JSON Files',
-        admins: ADMIN_IDS || []
-    });
+app.get('/api/health', async (req, res) => {
+    try {
+        const count = await mediaCollection.countDocuments();
+        res.json({
+            status: 'OK',
+            timestamp: new Date().toISOString(),
+            mediaCount: count,
+            database: 'MongoDB Atlas with GridFS',
+            admins: ADMIN_IDS || []
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // ==================== DEBUG ====================
-app.get('/api/debug/db', (req, res) => {
+app.get('/api/debug/db', async (req, res) => {
     try {
-        const mediaDB = readDB(MEDIA_DB_PATH, []);
-        const purchases = readDB(PURCHASES_DB_PATH, {});
-        const pending = readDB(PENDING_DB_PATH, []);
-        const users = readDB(USERS_DB_PATH, {});
+        const media = await mediaCollection.find({}).toArray();
+        const purchases = await purchasesCollection.find({}).toArray();
+        const pending = await pendingCollection.find({}).toArray();
+        const users = await usersCollection.find({}).toArray();
         
         res.json({
             success: true,
             data: {
-                mediaCount: mediaDB.length,
-                media: mediaDB.map(m => ({
+                mediaCount: media.length,
+                media: media.map(m => ({
                     id: m.id,
                     title: m.title,
                     type: m.type,
                     price: m.price,
                     isFree: m.isFree,
+                    fileUrl: m.fileUrl ? 'stored' : 'missing',
                     date: m.date
                 })),
-                purchaseCount: Object.keys(purchases).length,
+                purchaseCount: purchases.length,
                 pendingCount: pending.length,
-                userCount: Object.keys(users).length
+                userCount: users.length
             }
         });
     } catch (error) {
@@ -182,30 +180,34 @@ app.get('/api/debug/db', (req, res) => {
 });
 
 // ==================== GET ALL MEDIA ====================
-app.get('/api/media', (req, res) => {
+app.get('/api/media', async (req, res) => {
     try {
         const { userId } = req.query;
         console.log(`📸 Fetching media for user: ${userId || 'anonymous'}`);
         
-        const mediaDB = readDB(MEDIA_DB_PATH, []);
-        const purchases = readDB(PURCHASES_DB_PATH, {});
+        const media = await mediaCollection.find({ approved: true }).toArray();
         
-        const userPurchases = purchases[userId] || [];
+        const userPurchases = [];
+        if (userId) {
+            const purchases = await purchasesCollection.findOne({ userId: userId });
+            if (purchases) {
+                userPurchases.push(...purchases.mediaIds);
+            }
+        }
         
-        const media = mediaDB
-            .filter(item => item.approved !== false)
-            .map(item => ({
-                ...item,
-                isPurchased: userPurchases.includes(item.id)
-            }))
-            .sort((a, b) => new Date(b.date) - new Date(a.date));
+        const mediaWithStatus = media.map(item => ({
+            ...item,
+            isPurchased: userPurchases.includes(item.id)
+        }));
         
-        console.log(`✅ Returning ${media.length} media items`);
+        mediaWithStatus.sort((a, b) => new Date(b.date) - new Date(a.date));
+        
+        console.log(`✅ Returning ${mediaWithStatus.length} media items`);
         
         res.json({
             success: true,
-            count: media.length,
-            data: media
+            count: mediaWithStatus.length,
+            data: mediaWithStatus
         });
     } catch (error) {
         console.error('Error fetching media:', error);
@@ -217,13 +219,12 @@ app.get('/api/media', (req, res) => {
 });
 
 // ==================== GET SINGLE MEDIA ====================
-app.get('/api/media/:id', (req, res) => {
+app.get('/api/media/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const { userId } = req.query;
         
-        const mediaDB = readDB(MEDIA_DB_PATH, []);
-        const media = mediaDB.find(m => m.id === id);
+        const media = await mediaCollection.findOne({ id: id });
         
         if (!media) {
             return res.status(404).json({
@@ -234,8 +235,10 @@ app.get('/api/media/:id', (req, res) => {
         
         let isPurchased = false;
         if (userId) {
-            const purchases = readDB(PURCHASES_DB_PATH, {});
-            isPurchased = purchases[userId]?.includes(id) || false;
+            const purchases = await purchasesCollection.findOne({ userId: userId });
+            if (purchases) {
+                isPurchased = purchases.mediaIds.includes(id);
+            }
         }
         
         const response = {
@@ -245,8 +248,10 @@ app.get('/api/media/:id', (req, res) => {
         };
         
         if (isPurchased) {
-            media.views = (media.views || 0) + 1;
-            writeDB(MEDIA_DB_PATH, mediaDB);
+            await mediaCollection.updateOne(
+                { id: id },
+                { $inc: { views: 1 } }
+            );
         }
         
         res.json({
@@ -263,7 +268,7 @@ app.get('/api/media/:id', (req, res) => {
 });
 
 // ==================== AUTO-PURCHASE FREE CONTENT ====================
-app.post('/api/auto-purchase-free', (req, res) => {
+app.post('/api/auto-purchase-free', async (req, res) => {
     try {
         const { userId, mediaId } = req.body;
         
@@ -274,8 +279,7 @@ app.post('/api/auto-purchase-free', (req, res) => {
             });
         }
         
-        const mediaDB = readDB(MEDIA_DB_PATH, []);
-        const media = mediaDB.find(m => m.id === mediaId);
+        const media = await mediaCollection.findOne({ id: mediaId });
         
         if (!media) {
             return res.status(404).json({
@@ -291,22 +295,31 @@ app.post('/api/auto-purchase-free', (req, res) => {
             });
         }
         
-        let purchases = readDB(PURCHASES_DB_PATH, {});
-        if (purchases[userId]?.includes(mediaId)) {
+        const existingPurchase = await purchasesCollection.findOne({ userId: userId });
+        if (existingPurchase && existingPurchase.mediaIds.includes(mediaId)) {
             return res.status(400).json({
                 success: false,
                 error: 'Already purchased'
             });
         }
         
-        if (!purchases[userId]) {
-            purchases[userId] = [];
+        if (existingPurchase) {
+            await purchasesCollection.updateOne(
+                { userId: userId },
+                { $addToSet: { mediaIds: mediaId } }
+            );
+        } else {
+            await purchasesCollection.insertOne({
+                userId: userId,
+                mediaIds: [mediaId],
+                date: new Date().toISOString()
+            });
         }
-        purchases[userId].push(mediaId);
-        writeDB(PURCHASES_DB_PATH, purchases);
         
-        media.purchases = (media.purchases || 0) + 1;
-        writeDB(MEDIA_DB_PATH, mediaDB);
+        await mediaCollection.updateOne(
+            { id: mediaId },
+            { $inc: { purchases: 1 } }
+        );
         
         res.json({
             success: true,
@@ -335,8 +348,7 @@ app.post('/api/request-purchase', async (req, res) => {
             });
         }
         
-        const mediaDB = readDB(MEDIA_DB_PATH, []);
-        const media = mediaDB.find(m => m.id === mediaId);
+        const media = await mediaCollection.findOne({ id: mediaId });
         
         if (!media) {
             return res.status(404).json({
@@ -345,31 +357,32 @@ app.post('/api/request-purchase', async (req, res) => {
             });
         }
         
-        let purchases = readDB(PURCHASES_DB_PATH, {});
-        if (purchases[userId]?.includes(mediaId)) {
+        const existingPurchase = await purchasesCollection.findOne({ userId: userId });
+        if (existingPurchase && existingPurchase.mediaIds.includes(mediaId)) {
             return res.status(400).json({
                 success: false,
                 error: 'Already purchased'
             });
         }
         
-        let pending = readDB(PENDING_DB_PATH, []);
-        const existing = pending.find(p => p.userId === userId && p.mediaId === mediaId);
-        if (existing) {
+        const existingPending = await pendingCollection.findOne({ 
+            userId: userId, 
+            mediaId: mediaId 
+        });
+        if (existingPending) {
             return res.status(400).json({
                 success: false,
                 error: 'Already pending approval'
             });
         }
         
-        const users = readDB(USERS_DB_PATH, {});
-        const user = users[userId] || { username: 'Unknown', firstName: 'User' };
+        const user = await usersCollection.findOne({ id: userId });
         
         const request = {
             id: `pending_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
             userId: userId,
-            username: user.username || 'Unknown',
-            firstName: user.firstName || 'User',
+            username: user?.username || 'Unknown',
+            firstName: user?.firstName || 'User',
             mediaId: mediaId,
             mediaTitle: media.title,
             amount: media.price || 5.00,
@@ -379,24 +392,21 @@ app.post('/api/request-purchase', async (req, res) => {
             status: 'pending'
         };
         
-        pending.push(request);
-        writeDB(PENDING_DB_PATH, pending);
+        await pendingCollection.insertOne(request);
         
-        // Notify admins
         for (const adminId of ADMIN_IDS) {
             try {
                 const { bot } = require('./bot');
                 
                 let message = 
                     `🆕 **New Purchase Request!**\n\n` +
-                    `👤 User: @${user.username || 'Unknown'}\n` +
+                    `👤 User: @${user?.username || 'Unknown'}\n` +
                     `📌 Media: *${media.title}*\n` +
                     `💰 Amount: $${(media.price || 5.00).toFixed(2)}\n` +
                     `🆔 Request ID: *${request.id}*\n\n` +
                     `Use /approve ${request.id} to approve\n` +
                     `Use /reject ${request.id} to reject`;
                 
-                // Send message without await since we're in a for loop
                 bot.telegram.sendMessage(adminId, message, { parse_mode: 'Markdown' })
                     .then(() => console.log(`✅ Admin ${adminId} notified`))
                     .catch((err) => console.error(`Failed to notify admin ${adminId}:`, err.message));
@@ -422,11 +432,13 @@ app.post('/api/request-purchase', async (req, res) => {
 });
 
 // ==================== CHECK PENDING STATUS ====================
-app.get('/api/pending-status/:userId/:mediaId', (req, res) => {
+app.get('/api/pending-status/:userId/:mediaId', async (req, res) => {
     try {
         const { userId, mediaId } = req.params;
-        const pending = readDB(PENDING_DB_PATH, []);
-        const request = pending.find(p => p.userId === userId && p.mediaId === mediaId);
+        const request = await pendingCollection.findOne({ 
+            userId: userId, 
+            mediaId: mediaId 
+        });
         
         res.json({
             success: true,
@@ -442,16 +454,15 @@ app.get('/api/pending-status/:userId/:mediaId', (req, res) => {
 });
 
 // ==================== GET USER'S PENDING ====================
-app.get('/api/my-pending/:userId', (req, res) => {
+app.get('/api/my-pending/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
-        const pending = readDB(PENDING_DB_PATH, []);
-        const userPending = pending.filter(p => p.userId === userId);
+        const pending = await pendingCollection.find({ userId: userId }).toArray();
         
         res.json({
             success: true,
-            count: userPending.length,
-            data: userPending
+            count: pending.length,
+            data: pending
         });
     } catch (error) {
         res.status(500).json({
@@ -462,21 +473,20 @@ app.get('/api/my-pending/:userId', (req, res) => {
 });
 
 // ==================== GET USER'S PURCHASES ====================
-app.get('/api/my-purchases/:userId', (req, res) => {
+app.get('/api/my-purchases/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
-        const purchases = readDB(PURCHASES_DB_PATH, {});
-        const userPurchases = purchases[userId] || [];
+        const purchases = await purchasesCollection.findOne({ userId: userId });
+        const purchasedIds = purchases?.mediaIds || [];
         
-        const mediaDB = readDB(MEDIA_DB_PATH, []);
-        const purchasedMedia = mediaDB
-            .filter(m => userPurchases.includes(m.id))
-            .sort((a, b) => new Date(b.date) - new Date(a.date));
+        const media = await mediaCollection
+            .find({ id: { $in: purchasedIds } })
+            .toArray();
         
         res.json({
             success: true,
-            count: purchasedMedia.length,
-            data: purchasedMedia
+            count: media.length,
+            data: media.sort((a, b) => new Date(b.date) - new Date(a.date))
         });
     } catch (error) {
         res.status(500).json({
@@ -487,25 +497,26 @@ app.get('/api/my-purchases/:userId', (req, res) => {
 });
 
 // ==================== FIX MEDIA ====================
-app.get('/api/fix-media', (req, res) => {
+app.get('/api/fix-media', async (req, res) => {
     try {
-        const mediaDB = readDB(MEDIA_DB_PATH, []);
+        const media = await mediaCollection.find({}).toArray();
         let updated = 0;
         
-        mediaDB.forEach(item => {
+        for (const item of media) {
             if (item.isFree === undefined) {
                 const isFree = (item.price === 0 || item.price === '0' || item.price === 'free');
-                item.isFree = isFree;
+                await mediaCollection.updateOne(
+                    { id: item.id },
+                    { $set: { isFree: isFree } }
+                );
                 updated++;
             }
-        });
-        
-        writeDB(MEDIA_DB_PATH, mediaDB);
+        }
         
         res.json({
             success: true,
             message: `Updated ${updated} media items`,
-            totalMedia: mediaDB.length
+            totalMedia: media.length
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -530,16 +541,20 @@ app.use((err, req, res, next) => {
 });
 
 // ==================== START SERVER ====================
-function startServer() {
-    initializeDatabase();
+async function startServer() {
+    const dbConnected = await connectDB();
+    
+    if (!dbConnected) {
+        console.error('❌ Failed to connect to MongoDB. Server will not start.');
+        process.exit(1);
+    }
     
     app.listen(PORT, '0.0.0.0', () => {
         console.log('='.repeat(50));
         console.log(`🚀 Server running on port ${PORT}`);
-        console.log(`📁 Database: ${DB_DIR}`);
+        console.log(`📁 Database: MongoDB Atlas with GridFS`);
         console.log(`👑 Admins: ${ADMIN_IDS.length > 0 ? ADMIN_IDS.join(', ') : 'None!'}`);
         console.log(`🔍 Debug: /api/debug/db`);
-        console.log(`🔧 Fix: /api/fix-media`);
         console.log('='.repeat(50));
     });
     
