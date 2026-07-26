@@ -12,6 +12,7 @@ let isInitialized = false;
 let userData = {};
 let selectedScreenshot = null;
 let pendingMediaId = null;
+let refreshInterval = null;
 
 // ==================== ADMIN PAYPAL ====================
 const ADMIN_PAYPAL_EMAIL = 'lenabotrel65@outlook.com';
@@ -58,6 +59,13 @@ function init() {
     
     setupEventListeners();
     loadApp();
+    
+    // Auto-refresh every 10 seconds
+    refreshInterval = setInterval(() => {
+        if (document.getElementById('gallerySection').classList.contains('active')) {
+            refreshData();
+        }
+    }, 10000);
 }
 
 // ==================== UPDATE PROFILE UI ====================
@@ -79,7 +87,6 @@ function updateProfileUI() {
         avatar.style.backgroundSize = 'cover';
         avatar.style.backgroundPosition = 'center';
         avatar.textContent = '';
-        
         userBtn.style.backgroundImage = `url(${userData.photoUrl})`;
         userBtn.style.backgroundSize = 'cover';
         userBtn.style.backgroundPosition = 'center';
@@ -88,14 +95,14 @@ function updateProfileUI() {
         avatar.style.backgroundImage = 'none';
         avatar.style.background = 'var(--tg-primary)';
         avatar.textContent = userData.name.charAt(0).toUpperCase();
-        
         userBtn.style.backgroundImage = 'none';
         userBtn.style.background = 'var(--tg-border)';
         userBtn.textContent = userData.name.charAt(0).toUpperCase();
     }
     
     if (userData.isPremium) {
-        document.querySelector('.profile-username').innerHTML = `@${userData.username} ⭐ Premium`;
+        const usernameEl2 = document.querySelector('.profile-username');
+        if (usernameEl2) usernameEl2.innerHTML = `@${userData.username} ⭐ Premium`;
     }
     
     document.getElementById('profilePaypalEmail').textContent = ADMIN_PAYPAL_EMAIL;
@@ -136,14 +143,17 @@ function setupEventListeners() {
                 document.getElementById('profileSection').classList.add('active');
                 document.getElementById('pageTitle').textContent = 'Profile';
                 document.getElementById('statsBanner').style.display = 'none';
-                document.querySelector('.search-filter').style.display = 'none';
+                const searchFilter = document.querySelector('.search-filter');
+                if (searchFilter) searchFilter.style.display = 'none';
                 loadProfileData();
             } else {
                 document.getElementById('gallerySection').classList.add('active');
                 document.getElementById('profileSection').classList.remove('active');
                 document.getElementById('pageTitle').textContent = 'Premium Gallery';
                 document.getElementById('statsBanner').style.display = 'flex';
-                document.querySelector('.search-filter').style.display = 'block';
+                const searchFilter = document.querySelector('.search-filter');
+                if (searchFilter) searchFilter.style.display = 'block';
+                refreshData();
             }
         });
     });
@@ -197,6 +207,17 @@ function setupEventListeners() {
     }
 }
 
+// ==================== REFRESH DATA ====================
+async function refreshData() {
+    try {
+        await loadMedia();
+        await updateStats();
+        await loadProfileData();
+    } catch (error) {
+        console.error('Refresh error:', error);
+    }
+}
+
 // ==================== LOAD DATA ====================
 async function loadApp() {
     showLoading(true);
@@ -220,7 +241,6 @@ async function loadMedia() {
         if (result.success) {
             allMedia = result.data || [];
             console.log('📸 Media loaded:', allMedia.length, 'items');
-            console.log('📸 First item:', allMedia[0]);
             renderGallery(allMedia);
         }
     } catch (error) {
@@ -314,31 +334,21 @@ function renderGallery(media) {
         return;
     }
     
-    console.log('🎨 Rendering gallery with', media.length, 'items');
-    
     grid.innerHTML = media.map((item, index) => {
         const isPurchased = item.isPurchased || false;
         const isPending = item.isPending || false;
-        
-        console.log(`Item ${index}: ${item.title}, Purchased: ${isPurchased}, Type: ${item.type}`);
         
         let badgeHTML = '';
         let actionsHTML = '';
         let previewContent = '';
         
-        // Determine if content should be shown
-        const canView = isPurchased;
-        
         if (isPurchased) {
-            // OWNED - Show the actual photo/video
             badgeHTML = `<div class="badge badge-purchased">✅ Owned</div>`;
             actionsHTML = `
                 <button class="btn-action btn-view" onclick="event.stopPropagation(); viewMedia('${item.id}')">
                     👁️ View
                 </button>
             `;
-            
-            // Show actual media
             if (item.type === 'video') {
                 previewContent = `
                     <video muted preload="metadata" playsinline style="width:100%; height:100%; object-fit:cover;">
@@ -350,14 +360,10 @@ function renderGallery(media) {
                     <img src="${item.fileUrl}" alt="${item.title}" loading="lazy" style="width:100%; height:100%; object-fit:cover;" />
                 `;
             }
-            
         } else if (isPending) {
-            // PENDING - Show lock with pending badge
             badgeHTML = `<div class="badge badge-pending">⏳ Pending</div>`;
             actionsHTML = `
-                <button class="btn-action btn-pending" disabled>
-                    ⏳ Waiting
-                </button>
+                <button class="btn-action btn-pending" disabled>⏳ Waiting</button>
             `;
             previewContent = `
                 <div class="locked-content">
@@ -366,9 +372,7 @@ function renderGallery(media) {
                     <span class="lock-price">$${item.price || 5.00}</span>
                 </div>
             `;
-            
         } else {
-            // LOCKED - Show lock with buy button
             const priceText = item.isFree ? 'FREE 🎉' : `$${item.price || 5.00}`;
             badgeHTML = `<div class="badge badge-price">${priceText}</div>`;
             actionsHTML = `
@@ -454,7 +458,6 @@ async function openPurchaseModal(mediaId) {
     document.getElementById('modalPrice').textContent = (media.price || 5.00).toFixed(2);
     document.getElementById('modalPaypalEmail').textContent = ADMIN_PAYPAL_EMAIL;
     
-    // LOCKED preview - no actual media shown
     const preview = document.getElementById('modalPreview');
     preview.className = 'modal-preview locked-preview';
     preview.innerHTML = `
@@ -530,11 +533,7 @@ async function submitScreenshot() {
         if (result.success) {
             closeScreenshotModal();
             showToast('✅ Screenshot sent! Waiting for admin approval.', 'success');
-            setTimeout(() => {
-                loadMedia();
-                updateStats();
-                loadProfileData();
-            }, 1500);
+            setTimeout(() => refreshData(), 2000);
         } else {
             showToast(result.error || 'Failed to submit screenshot', 'error');
         }
@@ -570,7 +569,6 @@ async function viewMedia(mediaId) {
             content.innerHTML = `
                 <video controls autoplay playsinline style="max-width:100%; max-height:70vh; border-radius:8px;">
                     <source src="${media.fileUrl}" type="video/mp4">
-                    Your browser does not support videos.
                 </video>
             `;
         } else {
@@ -605,13 +603,7 @@ function showToast(message, type = 'info') {
     const icon = document.getElementById('toastIcon');
     const msg = document.getElementById('toastMessage');
     
-    const icons = {
-        success: '✅',
-        error: '❌',
-        pending: '⏳',
-        info: '📢'
-    };
-    
+    const icons = { success: '✅', error: '❌', pending: '⏳', info: '📢' };
     icon.textContent = icons[type] || '📢';
     msg.textContent = message;
     toast.className = `toast ${type}`;
@@ -630,12 +622,9 @@ function showLoading(show) {
 
 // ==================== INIT ====================
 document.addEventListener('DOMContentLoaded', init);
-
 document.addEventListener('visibilitychange', () => {
     if (!document.hidden && isInitialized) {
-        loadMedia();
-        updateStats();
-        loadProfileData();
+        refreshData();
     }
 });
 
