@@ -14,13 +14,12 @@ let userData = {};
 let selectedScreenshot = null;
 let pendingMediaId = null;
 let refreshInterval = null;
-let isTelegramWebApp = false;
 
 // ==================== CACHE HELPERS ====================
 function saveToCache(key, data) {
     try {
         localStorage.setItem(`premium_gallery_${key}`, JSON.stringify(data));
-    } catch (e) { console.warn('Cache save failed:', e); }
+    } catch (e) {}
 }
 
 function getFromCache(key) {
@@ -30,28 +29,28 @@ function getFromCache(key) {
     } catch (e) { return null; }
 }
 
-function savePurchasesToCache(purchases) {
-    saveToCache('purchases', purchases);
-}
-
 function getPurchasesFromCache() {
     return getFromCache('purchases') || [];
 }
 
-function saveGalleryToCache(media) {
-    saveToCache('gallery', media);
+function savePurchasesToCache(purchases) {
+    saveToCache('purchases', purchases);
 }
 
 function getGalleryFromCache() {
     return getFromCache('gallery') || [];
 }
 
-function saveUserToCache(user) {
-    saveToCache('user', user);
+function saveGalleryToCache(media) {
+    saveToCache('gallery', media);
 }
 
 function getUserFromCache() {
     return getFromCache('user');
+}
+
+function saveUserToCache(user) {
+    saveToCache('user', user);
 }
 
 // ==================== INITIALIZATION ====================
@@ -60,18 +59,15 @@ function init() {
     isInitialized = true;
     
     console.log('🔍 Initializing Premium Gallery...');
-    console.log('📡 Backend URL:', BACKEND_URL);
+    console.log('📡 BACKEND_URL:', BACKEND_URL);
     
     // Check for Telegram WebApp
     if (window.Telegram && window.Telegram.WebApp) {
         tg = window.Telegram.WebApp;
-        isTelegramWebApp = true;
         tg.ready();
         tg.expand();
         
         const user = tg.initDataUnsafe?.user;
-        console.log('📱 Telegram user data:', user);
-        
         if (user) {
             userId = String(user.id);
             userData = {
@@ -90,41 +86,38 @@ function init() {
         }
     }
     
-    // Fallback: Check URL parameters
+    // Fallback: URL params
     const urlParams = new URLSearchParams(window.location.search);
     const userIdParam = urlParams.get('userId');
-    const nameParam = urlParams.get('name');
-    const usernameParam = urlParams.get('username');
-    const photoParam = urlParams.get('photo');
     
     if (userIdParam) {
         userId = userIdParam;
         userData = {
             id: userId,
-            name: nameParam || 'User',
+            name: urlParams.get('name') || 'User',
             lastName: '',
-            username: usernameParam || 'user',
-            photoUrl: photoParam || null,
+            username: urlParams.get('username') || 'user',
+            photoUrl: urlParams.get('photo') || null,
             languageCode: 'en',
             isPremium: false
         };
         saveUserToCache(userData);
-        console.log('✅ User from URL params:', userData);
+        console.log('✅ User from URL:', userData);
         completeInit();
         return;
     }
     
-    // Try loading from cache
+    // Cache fallback
     const cachedUser = getUserFromCache();
     if (cachedUser) {
         userData = cachedUser;
         userId = cachedUser.id;
-        console.log('✅ User loaded from cache:', userData);
+        console.log('✅ User from cache:', userData);
         completeInit();
         return;
     }
     
-    // Last resort: create a guest user
+    // Guest user
     userId = 'guest_' + Date.now();
     userData = {
         id: userId,
@@ -136,7 +129,7 @@ function init() {
         isPremium: false
     };
     saveUserToCache(userData);
-    console.log('⚠️ Using guest user:', userData);
+    console.log('⚠️ Guest user:', userData);
     completeInit();
 }
 
@@ -145,22 +138,18 @@ function completeInit() {
     setupEventListeners();
     loadApp();
     
-    // Auto-refresh every 30 seconds
-    if (refreshInterval) clearInterval(refreshInterval);
     refreshInterval = setInterval(() => {
         if (document.getElementById('gallerySection')?.classList.contains('active')) {
             refreshData();
         }
     }, 30000);
     
-    console.log('✅ App initialized successfully');
+    console.log('✅ App initialized');
 }
 
 // ==================== UPDATE PROFILE UI ====================
 function updateProfileUI() {
-    const fullName = userData.lastName ? 
-        `${userData.name} ${userData.lastName}` : 
-        userData.name;
+    const fullName = userData.lastName ? `${userData.name} ${userData.lastName}` : userData.name;
     
     const avatar = document.getElementById('profileAvatar');
     const nameEl = document.getElementById('profileName');
@@ -170,29 +159,22 @@ function updateProfileUI() {
     nameEl.textContent = fullName || 'User';
     usernameEl.textContent = userData.username ? `@${userData.username}` : '@user';
     
-    // Update avatar
     if (userData.photoUrl && userData.photoUrl.startsWith('http')) {
         avatar.style.backgroundImage = `url(${userData.photoUrl})`;
         avatar.style.backgroundSize = 'cover';
         avatar.style.backgroundPosition = 'center';
         avatar.textContent = '';
-        
         userBtn.style.backgroundImage = `url(${userData.photoUrl})`;
         userBtn.style.backgroundSize = 'cover';
         userBtn.style.backgroundPosition = 'center';
         userBtn.textContent = '';
     } else {
         avatar.style.backgroundImage = 'none';
-        avatar.style.background = 'linear-gradient(135deg, var(--tg-primary), #ff6b6b)';
+        avatar.style.background = 'linear-gradient(135deg, #e94560, #ff6b6b)';
         avatar.textContent = (userData.name || 'U').charAt(0).toUpperCase();
-        
         userBtn.style.backgroundImage = 'none';
         userBtn.style.background = 'var(--tg-border)';
         userBtn.textContent = (userData.name || 'U').charAt(0).toUpperCase();
-    }
-    
-    if (userData.isPremium) {
-        usernameEl.innerHTML = `@${userData.username} ⭐ Premium`;
     }
     
     document.getElementById('profilePaypalEmail').textContent = ADMIN_PAYPAL_EMAIL;
@@ -202,21 +184,15 @@ function updateProfileUI() {
 
 // ==================== EVENT LISTENERS ====================
 function setupEventListeners() {
-    const backBtn = document.getElementById('backBtn');
-    if (backBtn) {
-        backBtn.addEventListener('click', () => {
-            if (tg) tg.close();
-            else window.close();
-        });
-    }
+    document.getElementById('backBtn')?.addEventListener('click', () => {
+        if (tg) tg.close();
+        else window.close();
+    });
     
-    const searchInput = document.getElementById('searchInput');
-    if (searchInput) {
-        searchInput.addEventListener('input', (e) => {
-            currentSearch = e.target.value.toLowerCase().trim();
-            applyFilters();
-        });
-    }
+    document.getElementById('searchInput')?.addEventListener('input', (e) => {
+        currentSearch = e.target.value.toLowerCase().trim();
+        applyFilters();
+    });
     
     document.querySelectorAll('.filter-chip').forEach(chip => {
         chip.addEventListener('click', function() {
@@ -232,23 +208,19 @@ function setupEventListeners() {
             document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
             this.classList.add('active');
             
-            const tab = this.dataset.tab;
-            
-            if (tab === 'profile') {
+            if (this.dataset.tab === 'profile') {
                 document.getElementById('gallerySection').classList.remove('active');
                 document.getElementById('profileSection').classList.add('active');
                 document.getElementById('pageTitle').textContent = 'Profile';
                 document.getElementById('statsBanner').style.display = 'none';
-                const searchFilter = document.querySelector('.search-filter');
-                if (searchFilter) searchFilter.style.display = 'none';
+                document.querySelector('.search-filter').style.display = 'none';
                 loadProfileData();
             } else {
                 document.getElementById('gallerySection').classList.add('active');
                 document.getElementById('profileSection').classList.remove('active');
                 document.getElementById('pageTitle').textContent = 'Premium Gallery';
                 document.getElementById('statsBanner').style.display = 'flex';
-                const searchFilter = document.querySelector('.search-filter');
-                if (searchFilter) searchFilter.style.display = 'block';
+                document.querySelector('.search-filter').style.display = 'block';
                 refreshData();
             }
         });
@@ -274,22 +246,19 @@ function setupEventListeners() {
         if (e.target === this) closeViewModal();
     });
     
-    const screenshotInput = document.getElementById('screenshotInput');
-    if (screenshotInput) {
-        screenshotInput.addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file) {
-                selectedScreenshot = file;
-                const reader = new FileReader();
-                reader.onload = function(event) {
-                    document.getElementById('screenshotImage').src = event.target.result;
-                    document.getElementById('screenshotPreview').style.display = 'block';
-                    document.getElementById('screenshotFileName').textContent = file.name;
-                };
-                reader.readAsDataURL(file);
-            }
-        });
-    }
+    document.getElementById('screenshotInput')?.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            selectedScreenshot = file;
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                document.getElementById('screenshotImage').src = event.target.result;
+                document.getElementById('screenshotPreview').style.display = 'block';
+                document.getElementById('screenshotFileName').textContent = file.name;
+            };
+            reader.readAsDataURL(file);
+        }
+    });
     
     if (tg) {
         tg.onEvent('backButtonClicked', () => {
@@ -321,26 +290,25 @@ async function refreshData() {
 async function loadApp() {
     showLoading(true);
     try {
-        // Try loading from cache first for instant display
         const cachedGallery = getGalleryFromCache();
         if (cachedGallery && cachedGallery.length > 0) {
             allMedia = cachedGallery;
             renderGallery(allMedia);
-            console.log('📸 Loaded from cache:', cachedGallery.length, 'items');
+            console.log('📸 From cache:', cachedGallery.length, 'items');
         }
         
         await loadMedia();
         await updateStats();
         await loadProfileData();
     } catch (error) {
-        console.error('Error loading app:', error);
+        console.error('Error:', error);
         const cached = getGalleryFromCache();
         if (cached && cached.length > 0) {
             allMedia = cached;
             renderGallery(allMedia);
             showToast('Using cached content', 'info');
         } else {
-            showToast('Failed to load content. Please refresh.', 'error');
+            showToast('Failed to load content', 'error');
         }
     } finally {
         showLoading(false);
@@ -351,33 +319,26 @@ async function loadApp() {
 async function loadMedia() {
     try {
         const url = `${BACKEND_URL}/media?userId=${encodeURIComponent(userId)}`;
-        console.log('📡 Fetching media from:', url);
+        console.log('📡 Fetching:', url);
         
-        const response = await fetch(url, {
-            headers: {
-                'Cache-Control': 'no-cache'
-            }
-        });
-        
-        console.log('📡 Response status:', response.status);
+        const response = await fetch(url);
+        console.log('📡 Status:', response.status);
         
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            throw new Error(`HTTP ${response.status}`);
         }
         
         const result = await response.json();
-        console.log('📡 Response data:', result);
+        console.log('📡 Data:', result);
         
         if (result.success) {
             allMedia = result.data || [];
-            // Cache the gallery
             saveGalleryToCache(allMedia);
-            console.log('📸 Media loaded:', allMedia.length, 'items');
+            console.log('📸 Loaded:', allMedia.length, 'items');
             renderGallery(allMedia);
             
-            // Merge with cached purchases if needed
             const cachedPurchases = getPurchasesFromCache();
-            if (cachedPurchases && cachedPurchases.length > 0) {
+            if (cachedPurchases.length > 0) {
                 allMedia = allMedia.map(item => ({
                     ...item,
                     isPurchased: cachedPurchases.includes(item.id) || item.isPurchased
@@ -385,18 +346,15 @@ async function loadMedia() {
                 renderGallery(allMedia);
             }
         } else {
-            console.error('❌ API returned error:', result);
-            // Use cache
+            console.error('API error:', result);
             const cached = getGalleryFromCache();
             if (cached.length > 0) {
                 allMedia = cached;
                 renderGallery(allMedia);
             }
-            showToast('Failed to load media', 'error');
         }
     } catch (error) {
-        console.error('Load media error:', error);
-        // Use cache
+        console.error('Load error:', error);
         const cached = getGalleryFromCache();
         if (cached.length > 0) {
             allMedia = cached;
@@ -416,7 +374,6 @@ async function updateStats() {
         if (purchaseData.success) {
             document.getElementById('purchaseCount').textContent = purchaseData.count || 0;
             document.getElementById('navBadge').textContent = purchaseData.count || 0;
-            // Update cache
             const purchasedIds = (purchaseData.data || []).map(m => m.id);
             savePurchasesToCache(purchasedIds);
         }
@@ -430,12 +387,6 @@ async function updateStats() {
         document.getElementById('mediaCount').textContent = allMedia.length || 0;
     } catch (error) {
         console.error('Stats error:', error);
-        // Use cached stats
-        const cachedPurchases = getPurchasesFromCache();
-        if (cachedPurchases) {
-            document.getElementById('purchaseCount').textContent = cachedPurchases.length || 0;
-            document.getElementById('navBadge').textContent = cachedPurchases.length || 0;
-        }
     }
 }
 
@@ -448,18 +399,13 @@ async function loadProfileData() {
         const pendingRes = await fetch(`${BACKEND_URL}/my-pending/${encodeURIComponent(userId)}`);
         const pendingData = await pendingRes.json();
         
-        const totalMedia = allMedia.length || 0;
-        const purchasedCount = purchaseData.success ? purchaseData.count : 0;
-        const pendingCount = pendingData.success ? pendingData.count : 0;
-        
-        document.getElementById('profileTotalMedia').textContent = totalMedia;
-        document.getElementById('profilePurchased').textContent = purchasedCount;
-        document.getElementById('profilePending').textContent = pendingCount;
+        document.getElementById('profileTotalMedia').textContent = allMedia.length || 0;
+        document.getElementById('profilePurchased').textContent = purchaseData.success ? purchaseData.count : 0;
+        document.getElementById('profilePending').textContent = pendingData.success ? pendingData.count : 0;
         
         renderPurchaseHistory(purchaseData.success ? purchaseData.data : []);
-        
     } catch (error) {
-        console.error('Profile data error:', error);
+        console.error('Profile error:', error);
     }
 }
 
@@ -481,7 +427,7 @@ function renderPurchaseHistory(purchases) {
             <div class="item-icon">${item.type === 'video' ? '🎬' : '📷'}</div>
             <div class="item-details">
                 <div class="item-title">${item.title || 'Untitled'}</div>
-                <div class="item-meta">${item.description || 'No description'}</div>
+                <div class="item-meta">${item.description || ''}</div>
             </div>
             <div class="item-price">$${item.price || 0}</div>
             <span class="item-status approved">✅ Approved</span>
@@ -506,8 +452,6 @@ function renderGallery(media) {
         return;
     }
     
-    console.log('🎨 Rendering gallery with', media.length, 'items');
-    
     grid.innerHTML = media.map((item, index) => {
         const isPurchased = item.isPurchased || false;
         const isPending = item.isPending || false;
@@ -520,11 +464,9 @@ function renderGallery(media) {
         const shouldShowContent = isPurchased || isFree;
         
         if (shouldShowContent) {
-            if (isFree && !isPurchased) {
-                badgeHTML = `<div class="badge badge-free">🎉 FREE</div>`;
-            } else {
-                badgeHTML = `<div class="badge badge-purchased">✅ Owned</div>`;
-            }
+            badgeHTML = isFree && !isPurchased ? 
+                `<div class="badge badge-free">🎉 FREE</div>` :
+                `<div class="badge badge-purchased">✅ Owned</div>`;
             
             actionsHTML = `
                 <button class="btn-action btn-view" onclick="event.stopPropagation(); viewMedia('${item.id}')">
@@ -532,25 +474,15 @@ function renderGallery(media) {
                 </button>
             `;
             
-            if (item.type === 'video') {
-                previewContent = `
-                    <video muted preload="metadata" playsinline style="width:100%; height:100%; object-fit:cover;">
-                        <source src="${item.fileUrl}" type="video/mp4">
-                    </video>
-                `;
-            } else {
-                previewContent = `
-                    <img src="${item.fileUrl}" alt="${item.title}" loading="lazy" style="width:100%; height:100%; object-fit:cover;" />
-                `;
-            }
+            previewContent = item.type === 'video' ?
+                `<video muted preload="metadata" playsinline style="width:100%; height:100%; object-fit:cover;">
+                    <source src="${item.fileUrl}" type="video/mp4">
+                </video>` :
+                `<img src="${item.fileUrl}" alt="${item.title}" loading="lazy" style="width:100%; height:100%; object-fit:cover;" />`;
             
         } else if (isPending) {
             badgeHTML = `<div class="badge badge-pending">⏳ Pending</div>`;
-            actionsHTML = `
-                <button class="btn-action btn-pending" disabled>
-                    ⏳ Waiting
-                </button>
-            `;
+            actionsHTML = `<button class="btn-action btn-pending" disabled>⏳ Waiting</button>`;
             previewContent = `
                 <div class="locked-content">
                     <span class="lock-icon">🔒</span>
@@ -558,36 +490,28 @@ function renderGallery(media) {
                     <span class="lock-price">$${item.price || 5.00}</span>
                 </div>
             `;
-            
         } else {
-            const priceText = `$${item.price || 5.00}`;
-            badgeHTML = `<div class="badge badge-price">${priceText}</div>`;
-            actionsHTML = `
-                <button class="btn-action btn-buy" onclick="openPurchaseModal('${item.id}')">
-                    💰 Buy
-                </button>
-            `;
+            badgeHTML = `<div class="badge badge-price">$${item.price || 5.00}</div>`;
+            actionsHTML = `<button class="btn-action btn-buy" onclick="openPurchaseModal('${item.id}')">💰 Buy</button>`;
             previewContent = `
                 <div class="locked-content">
                     <span class="lock-icon">🔒</span>
                     <span class="lock-text">Premium Content</span>
-                    <span class="lock-price">${priceText}</span>
+                    <span class="lock-price">$${item.price || 5.00}</span>
                 </div>
             `;
         }
         
         return `
-            <div class="media-card" style="animation-delay: ${index * 0.05}s" data-id="${item.id}">
+            <div class="media-card" style="animation-delay: ${index * 0.05}s">
                 <div class="media-wrapper">
                     ${previewContent}
                     ${badgeHTML}
                 </div>
                 <div class="media-info">
                     <div class="media-title">${item.title || 'Untitled'}</div>
-                    <div class="media-subtitle">${item.description || 'No description'}</div>
-                    <div class="media-actions">
-                        ${actionsHTML}
-                    </div>
+                    <div class="media-subtitle">${item.description || ''}</div>
+                    <div class="media-actions">${actionsHTML}</div>
                 </div>
             </div>
         `;
@@ -620,8 +544,6 @@ function applyFilters() {
 
 // ==================== PURCHASE MODAL ====================
 function openPurchaseModal(mediaId) {
-    console.log('💰 Opening purchase modal for:', mediaId);
-    
     const media = allMedia.find(m => m.id === mediaId);
     if (!media) {
         showToast('Content not found', 'error');
@@ -629,7 +551,7 @@ function openPurchaseModal(mediaId) {
     }
     
     if (media.isFree) {
-        showToast('🎉 This content is FREE! Enjoy!', 'success');
+        showToast('🎉 This content is FREE!', 'success');
         viewMedia(mediaId);
         return;
     }
@@ -641,12 +563,12 @@ function openPurchaseModal(mediaId) {
         .then(res => res.json())
         .then(result => {
             if (result.isPending) {
-                showToast('⏳ Already pending approval', 'pending');
+                showToast('⏳ Already pending', 'pending');
                 return;
             }
             
             document.getElementById('modalTitle').textContent = media.title || 'Untitled';
-            document.getElementById('modalDescription').textContent = media.description || 'No description';
+            document.getElementById('modalDescription').textContent = media.description || '';
             document.getElementById('modalPrice').textContent = (media.price || 5.00).toFixed(2);
             document.getElementById('modalPaypalEmail').textContent = ADMIN_PAYPAL_EMAIL;
             document.getElementById('modalLockPrice').textContent = '$' + (media.price || 5.00).toFixed(2);
@@ -654,10 +576,9 @@ function openPurchaseModal(mediaId) {
             document.getElementById('purchaseModal').style.display = 'flex';
             document.body.style.overflow = 'hidden';
         })
-        .catch(error => {
-            console.error('Pending check error:', error);
+        .catch(() => {
             document.getElementById('modalTitle').textContent = media.title || 'Untitled';
-            document.getElementById('modalDescription').textContent = media.description || 'No description';
+            document.getElementById('modalDescription').textContent = media.description || '';
             document.getElementById('modalPrice').textContent = (media.price || 5.00).toFixed(2);
             document.getElementById('modalPaypalEmail').textContent = ADMIN_PAYPAL_EMAIL;
             document.getElementById('purchaseModal').style.display = 'flex';
@@ -672,7 +593,6 @@ function closePurchaseModal() {
 
 // ==================== SCREENSHOT UPLOAD ====================
 function openScreenshotUpload() {
-    console.log('📸 Opening screenshot upload');
     closePurchaseModal();
     document.getElementById('screenshotPaypalEmail').textContent = ADMIN_PAYPAL_EMAIL;
     document.getElementById('screenshotModal').style.display = 'flex';
@@ -689,10 +609,8 @@ function closeScreenshotModal() {
 
 // ==================== SUBMIT SCREENSHOT ====================
 async function submitScreenshot() {
-    console.log('📤 Submitting screenshot');
-    
     if (!selectedScreenshot) {
-        showToast('Please select a screenshot first', 'error');
+        showToast('Select a screenshot first', 'error');
         return;
     }
     
@@ -725,17 +643,14 @@ async function submitScreenshot() {
         });
         
         const result = await response.json();
-        console.log('📤 Submit result:', result);
         
         if (result.success) {
-            // Update cache
-            const cachedPurchases = getPurchasesFromCache() || [];
+            const cachedPurchases = getPurchasesFromCache();
             if (!cachedPurchases.includes(pendingMediaId)) {
                 cachedPurchases.push(pendingMediaId);
                 savePurchasesToCache(cachedPurchases);
             }
             
-            // Update local media state
             const mediaItem = allMedia.find(m => m.id === pendingMediaId);
             if (mediaItem) {
                 mediaItem.isPurchased = true;
@@ -744,14 +659,14 @@ async function submitScreenshot() {
             }
             
             closeScreenshotModal();
-            showToast('✅ Screenshot sent! Waiting for admin approval.', 'success');
+            showToast('✅ Screenshot sent! Waiting for approval.', 'success');
             setTimeout(() => refreshData(), 2000);
         } else {
-            showToast(result.error || 'Failed to submit screenshot', 'error');
+            showToast(result.error || 'Failed to submit', 'error');
         }
     } catch (error) {
-        console.error('Submit screenshot error:', error);
-        showToast('Network error. Please try again.', 'error');
+        console.error('Submit error:', error);
+        showToast('Network error. Try again.', 'error');
     } finally {
         btn.disabled = false;
         btn.innerHTML = '<span>📤</span> Submit for Approval';
@@ -760,14 +675,12 @@ async function submitScreenshot() {
 
 // ==================== VIEW MEDIA ====================
 async function viewMedia(mediaId) {
-    console.log('👁️ Viewing media:', mediaId);
-    
     try {
         const response = await fetch(`${BACKEND_URL}/media/${mediaId}?userId=${encodeURIComponent(userId)}`);
         const result = await response.json();
         
         if (!result.success) {
-            showToast('Failed to load content', 'error');
+            showToast('Failed to load', 'error');
             return;
         }
         
@@ -781,8 +694,7 @@ async function viewMedia(mediaId) {
             });
             const autoResult = await autoPurchase.json();
             if (autoResult.success) {
-                // Update cache
-                const cachedPurchases = getPurchasesFromCache() || [];
+                const cachedPurchases = getPurchasesFromCache();
                 if (!cachedPurchases.includes(mediaId)) {
                     cachedPurchases.push(mediaId);
                     savePurchasesToCache(cachedPurchases);
@@ -792,7 +704,7 @@ async function viewMedia(mediaId) {
         }
         
         if (!media.isPurchased && !media.isFree) {
-            showToast('🔒 Purchase this content to view', 'error');
+            showToast('🔒 Purchase to view', 'error');
             return;
         }
         
@@ -801,7 +713,6 @@ async function viewMedia(mediaId) {
             content.innerHTML = `
                 <video controls autoplay playsinline style="max-width:100%; max-height:70vh; border-radius:8px;">
                     <source src="${media.fileUrl}" type="video/mp4">
-                    Your browser does not support videos.
                 </video>
             `;
         } else {
@@ -816,10 +727,9 @@ async function viewMedia(mediaId) {
         
         document.getElementById('viewModal').style.display = 'flex';
         document.body.style.overflow = 'hidden';
-        
     } catch (error) {
         console.error('View error:', error);
-        showToast('Failed to view content', 'error');
+        showToast('Failed to view', 'error');
     }
 }
 
