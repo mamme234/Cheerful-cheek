@@ -1,17 +1,38 @@
 {
-  "name": "telegram-miniapp-backend",
+  "name": "cheerful-chick-backend",
   "version": "1.0.0",
-  "description": "Premium Gallery Bot with Admin Approval",
+  "description": "Cheerful Chick Telegram Mini App Backend with Multi-Admin Support",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "keywords": [
+    "telegram",
+    "mini-app",
+    "cheerful-chick",
+    "admin-panel",
+    "payment",
+    "chat"
+  ],
+  "author": "Cheerful Chick",
+  "license": "MIT",
   "dependencies": {
     "express": "^4.18.2",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
-    "telegraf": "^4.15.3",
-    "mongodb": "^5.9.0",
-    "axios": "^1.6.2"
+    "multer": "^1.4.5-lts.1",
+    "node-telegram-bot-api": "^0.64.0",
+    "axios": "^1.6.0",
+    "uuid": "^9.0.1",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=16.0.0"
   }
 }
