@@ -136,7 +136,7 @@ bot.command('cancel', async (ctx) => {
     }
 });
 
-// Handle photo upload
+// ==================== HANDLE PHOTO UPLOAD (FIXED) ====================
 bot.on('photo', async (ctx) => {
     const userId = ctx.from.id;
     console.log(`📸 Photo received from: ${userId}`);
@@ -147,10 +147,18 @@ bot.on('photo', async (ctx) => {
     try {
         const photo = ctx.message.photo[ctx.message.photo.length - 1];
         const fileId = photo.file_id;
-        const fileLink = await ctx.telegram.getFileLink(fileId);
+        
+        // Get file path from Telegram
+        const file = await ctx.telegram.getFile(fileId);
+        const filePath = file.file_path;
+        
+        // Construct the URL properly with bot token
+        const fileUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`;
+        
+        console.log(`📸 File URL: ${fileUrl}`);
         
         uploadStates[userId].fileId = fileId;
-        uploadStates[userId].fileUrl = fileLink.href;
+        uploadStates[userId].fileUrl = fileUrl;
         uploadStates[userId].type = 'photo';
         uploadStates[userId].step = 'title';
         
@@ -168,7 +176,7 @@ bot.on('photo', async (ctx) => {
     }
 });
 
-// Handle video upload
+// ==================== HANDLE VIDEO UPLOAD (FIXED) ====================
 bot.on('video', async (ctx) => {
     const userId = ctx.from.id;
     console.log(`🎬 Video received from: ${userId}`);
@@ -179,10 +187,18 @@ bot.on('video', async (ctx) => {
     try {
         const video = ctx.message.video;
         const fileId = video.file_id;
-        const fileLink = await ctx.telegram.getFileLink(fileId);
+        
+        // Get file path from Telegram
+        const file = await ctx.telegram.getFile(fileId);
+        const filePath = file.file_path;
+        
+        // Construct the URL properly with bot token
+        const fileUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`;
+        
+        console.log(`🎬 File URL: ${fileUrl}`);
         
         uploadStates[userId].fileId = fileId;
-        uploadStates[userId].fileUrl = fileLink.href;
+        uploadStates[userId].fileUrl = fileUrl;
         uploadStates[userId].type = 'video';
         uploadStates[userId].duration = video.duration;
         uploadStates[userId].step = 'title';
@@ -201,7 +217,7 @@ bot.on('video', async (ctx) => {
     }
 });
 
-// Handle text input
+// ==================== HANDLE TEXT INPUT ====================
 bot.on('text', async (ctx) => {
     const userId = ctx.from.id;
     const text = ctx.message.text;
@@ -269,11 +285,13 @@ bot.on('text', async (ctx) => {
         
         try {
             const mediaDB = readDB(MEDIA_DB_PATH);
+            
+            // Create the media object with proper URL
             const newMedia = {
                 id: `media_${Date.now()}`,
                 type: state.type,
                 fileId: state.fileId,
-                fileUrl: state.fileUrl,
+                fileUrl: state.fileUrl, // Now using the proper Telegram file URL
                 title: state.title,
                 description: state.description || 'No description',
                 price: price,
@@ -289,6 +307,7 @@ bot.on('text', async (ctx) => {
             writeDB(MEDIA_DB_PATH, mediaDB);
             
             console.log(`✅ Media saved: ${newMedia.id} - ${newMedia.title}`);
+            console.log(`📸 File URL: ${newMedia.fileUrl}`);
             
             delete uploadStates[userId];
             
@@ -355,7 +374,8 @@ bot.command('list', async (ctx) => {
         const priceText = item.isFree ? 'FREE' : `$${item.price}`;
         message += `${index + 1}. ${item.type.toUpperCase()} - ${item.title}\n`;
         message += `   💰 ${priceText} | 🛒 ${item.purchases || 0} sold\n`;
-        message += `   🆔 ${item.id}\n\n`;
+        message += `   🆔 ${item.id}\n`;
+        message += `   📎 ${item.fileUrl}\n\n`;
     });
     
     ctx.reply(message);
