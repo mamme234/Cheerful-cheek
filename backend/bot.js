@@ -3,7 +3,8 @@ const fs = require('fs');
 const path = require('path');
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
-const ADMIN_ID = parseInt(process.env.ADMIN_ID);
+// Multiple admins - comma separated IDs
+const ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || '@cheerfulchi';
 const ADMIN_PAYPAL_LINK = process.env.ADMIN_PAYPAL_LINK || 'https://paypal.me/yourusername';
 
@@ -50,6 +51,11 @@ const writeDB = (filePath, data) => {
   }
 };
 
+// Check if user is admin
+const isAdmin = (userId) => {
+  return ADMIN_IDS.includes(userId);
+};
+
 // ==================== UPLOAD STATE ====================
 let uploadStates = {};
 
@@ -59,7 +65,7 @@ let uploadStates = {};
 bot.command('upload', async (ctx) => {
   const userId = ctx.from.id;
   
-  if (userId !== ADMIN_ID) {
+  if (!isAdmin(userId)) {
     return ctx.reply('⛔ Only admins can upload media.');
   }
   
@@ -91,7 +97,7 @@ bot.command('cancel', async (ctx) => {
 bot.on('photo', async (ctx) => {
   const userId = ctx.from.id;
   
-  if (userId !== ADMIN_ID) return;
+  if (!isAdmin(userId)) return;
   if (!uploadStates[userId] || uploadStates[userId].step !== 'media') return;
   
   try {
@@ -123,7 +129,7 @@ bot.on('photo', async (ctx) => {
 bot.on('video', async (ctx) => {
   const userId = ctx.from.id;
   
-  if (userId !== ADMIN_ID) return;
+  if (!isAdmin(userId)) return;
   if (!uploadStates[userId] || uploadStates[userId].step !== 'media') return;
   
   try {
@@ -156,13 +162,12 @@ bot.on('video', async (ctx) => {
 bot.on('document', async (ctx) => {
   const userId = ctx.from.id;
   
-  if (userId !== ADMIN_ID) return;
+  if (!isAdmin(userId)) return;
   if (!uploadStates[userId] || uploadStates[userId].step !== 'media') return;
   
   const doc = ctx.message.document;
   const mimeType = doc.mime_type || '';
   
-  // Check if it's a photo or video
   if (mimeType.startsWith('image/')) {
     try {
       const fileId = doc.file_id;
@@ -217,9 +222,9 @@ bot.on('text', async (ctx) => {
   const userId = ctx.from.id;
   const text = ctx.message.text;
   
-  if (userId !== ADMIN_ID) return;
+  if (!isAdmin(userId)) return;
   if (!uploadStates[userId]) return;
-  if (text.startsWith('/')) return; // Ignore commands
+  if (text.startsWith('/')) return;
   
   const state = uploadStates[userId];
   
@@ -233,7 +238,6 @@ bot.on('text', async (ctx) => {
       `📌 Title: *${text}*\n\n` +
       '📝 **Step 3/4: Enter Description**\n\n' +
       'Send me the **description** for this content.\n' +
-      'Example: `Beautiful sunset view at the beach`\n' +
       'Or send /skip to skip description.\n\n' +
       'Type /cancel to cancel upload.',
       { parse_mode: 'Markdown' }
@@ -266,7 +270,6 @@ bot.on('text', async (ctx) => {
     let price = 0;
     let isFree = false;
     
-    // Check if free
     if (text.toLowerCase() === 'free' || text === '0') {
       isFree = true;
       price = 0;
@@ -279,7 +282,6 @@ bot.on('text', async (ctx) => {
       price = parsed;
     }
     
-    // Save to database
     try {
       const mediaDB = readDB(MEDIA_DB_PATH);
       const newMedia = {
@@ -294,7 +296,8 @@ bot.on('text', async (ctx) => {
         date: new Date().toISOString(),
         views: 0,
         purchases: 0,
-        approved: true
+        approved: true,
+        uploadedBy: userId
       };
       
       mediaDB.push(newMedia);
@@ -302,6 +305,26 @@ bot.on('text', async (ctx) => {
       
       // Clear upload state
       delete uploadStates[userId];
+      
+      // Notify all admins
+      for (const adminId of ADMIN_IDS) {
+        if (adminId !== userId) {
+          try {
+            await bot.telegram.sendMessage(
+              adminId,
+              `📢 **New Content Uploaded**\n\n` +
+              `📌 Title: *${newMedia.title}*\n` +
+              `💰 Price: *${isFree ? 'FREE 🎉' : '$' + price.toFixed(2)}*\n` +
+              `📷 Type: *${newMedia.type}*\n` +
+              `🆔 ID: *${newMedia.id}*\n\n` +
+              `Uploaded by: @${ctx.from.username || 'Unknown'}`,
+              { parse_mode: 'Markdown' }
+            );
+          } catch (e) {
+            console.error('Failed to notify admin:', e);
+          }
+        }
+      }
       
       ctx.reply(
         `✅ **Content uploaded successfully!**\n\n` +
@@ -321,11 +344,11 @@ bot.on('text', async (ctx) => {
   }
 });
 
-// Skip description (Step 3)
+// Skip description
 bot.command('skip', async (ctx) => {
   const userId = ctx.from.id;
   
-  if (userId !== ADMIN_ID) return;
+  if (!isAdmin(userId)) return;
   if (!uploadStates[userId]) return;
   
   const state = uploadStates[userId];
@@ -356,7 +379,7 @@ bot.command('skip', async (ctx) => {
 // List all media
 bot.command('list', async (ctx) => {
   const userId = ctx.from.id;
-  if (userId !== ADMIN_ID) return ctx.reply('⛔ Admins only.');
+  if (!isAdmin(userId)) return ctx.reply('⛔ Admins only.');
   
   const mediaDB = readDB(MEDIA_DB_PATH);
   
@@ -378,7 +401,7 @@ bot.command('list', async (ctx) => {
 // Delete media
 bot.command('delete', async (ctx) => {
   const userId = ctx.from.id;
-  if (userId !== ADMIN_ID) return ctx.reply('⛔ Admins only.');
+  if (!isAdmin(userId)) return ctx.reply('⛔ Admins only.');
   
   const args = ctx.message.text.split(' ');
   if (args.length < 2) {
@@ -402,7 +425,7 @@ bot.command('delete', async (ctx) => {
 // View pending approvals
 bot.command('pending', async (ctx) => {
   const userId = ctx.from.id;
-  if (userId !== ADMIN_ID) return ctx.reply('⛔ Admins only.');
+  if (!isAdmin(userId)) return ctx.reply('⛔ Admins only.');
   
   const pending = readDB(PENDING_DB_PATH);
   
@@ -424,7 +447,7 @@ bot.command('pending', async (ctx) => {
 // Approve purchase
 bot.command('approve', async (ctx) => {
   const userId = ctx.from.id;
-  if (userId !== ADMIN_ID) return ctx.reply('⛔ Admins only.');
+  if (!isAdmin(userId)) return ctx.reply('⛔ Admins only.');
   
   const args = ctx.message.text.split(' ');
   if (args.length < 2) {
@@ -479,7 +502,7 @@ bot.command('approve', async (ctx) => {
 // Reject purchase
 bot.command('reject', async (ctx) => {
   const userId = ctx.from.id;
-  if (userId !== ADMIN_ID) return ctx.reply('⛔ Admins only.');
+  if (!isAdmin(userId)) return ctx.reply('⛔ Admins only.');
   
   const args = ctx.message.text.split(' ');
   if (args.length < 2) {
@@ -518,7 +541,7 @@ bot.command('reject', async (ctx) => {
 
 bot.command('stats', async (ctx) => {
   const userId = ctx.from.id;
-  if (userId !== ADMIN_ID) return ctx.reply('⛔ Admins only.');
+  if (!isAdmin(userId)) return ctx.reply('⛔ Admins only.');
   
   const mediaDB = readDB(MEDIA_DB_PATH);
   const purchases = readDB(PURCHASES_DB_PATH);
@@ -650,6 +673,7 @@ async function startBot() {
     const me = await bot.telegram.getMe();
     console.log(`🤖 Bot connected: @${me.username}`);
     console.log(`📌 Bot ID: ${me.id}`);
+    console.log(`👑 Admins: ${ADMIN_IDS.length > 0 ? ADMIN_IDS.join(', ') : 'None set!'}`);
     
     await bot.launch();
     console.log('✅ Bot is running successfully!');
@@ -673,6 +697,7 @@ module.exports = {
   USERS_DB_PATH, 
   PENDING_DB_PATH, 
   PURCHASES_DB_PATH, 
-  ADMIN_ID,
-  startBot
+  ADMIN_IDS,
+  startBot,
+  isAdmin
 };
