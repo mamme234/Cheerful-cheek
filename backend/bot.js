@@ -11,6 +11,7 @@ if (!BOT_TOKEN) {
 
 const ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || '@KING_OF_ALPHA';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://cheerful-cheek.vercel.app';
 
 const DB_DIR = process.env.DB_DIR || path.join(__dirname, 'database');
 const MEDIA_DB_PATH = path.join(DB_DIR, 'media.json');
@@ -53,7 +54,7 @@ const writeDB = (filePath, data) => {
     }
 };
 
-const isAdmin = (userId) => ADMIN_IDS.includes(userId);
+const isAdmin = (userId) => ADMIN_IDS.includes(Number(userId));
 
 // ==================== UPLOAD STATE ====================
 let uploadStates = {};
@@ -80,6 +81,9 @@ bot.command('start', async (ctx) => {
     const purchases = readDB(PURCHASES_DB_PATH);
     const userPurchases = purchases[userId] || [];
     
+    // Build WebApp URL with user data
+    const webAppUrl = `${FRONTEND_URL}?userId=${userId}&name=${encodeURIComponent(ctx.from.first_name || 'User')}&username=${encodeURIComponent(ctx.from.username || '')}`;
+    
     ctx.reply(
         `👋 Welcome ${ctx.from.first_name || 'User'}!\n\n` +
         `📸 **Premium Gallery**\n` +
@@ -95,7 +99,7 @@ bot.command('start', async (ctx) => {
             parse_mode: 'Markdown',
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: '🎨 Open Gallery', web_app: { url: process.env.FRONTEND_URL || 'https://cheerful-cheek.vercel.app' } }],
+                    [{ text: '🎨 Open Gallery', web_app: { url: webAppUrl } }],
                     [{ text: '📋 My Purchases', callback_data: 'my_purchases' }],
                     [{ text: '⏳ Pending Requests', callback_data: 'my_pending' }]
                 ]
@@ -334,7 +338,7 @@ bot.command('skip', async (ctx) => {
     }
 });
 
-// ==================== OTHER ADMIN COMMANDS ====================
+// ==================== ADMIN COMMANDS ====================
 
 bot.command('list', async (ctx) => {
     const userId = ctx.from.id;
@@ -418,13 +422,17 @@ bot.command('approve', async (ctx) => {
         return ctx.reply('❌ Pending request not found.');
     }
     
+    // Add to purchases
     const purchases = readDB(PURCHASES_DB_PATH);
     if (!purchases[request.userId]) {
         purchases[request.userId] = [];
     }
-    purchases[request.userId].push(request.mediaId);
+    if (!purchases[request.userId].includes(request.mediaId)) {
+        purchases[request.userId].push(request.mediaId);
+    }
     writeDB(PURCHASES_DB_PATH, purchases);
     
+    // Update media purchase count
     const mediaDB = readDB(MEDIA_DB_PATH);
     const media = mediaDB.find(m => m.id === request.mediaId);
     if (media) {
@@ -432,6 +440,7 @@ bot.command('approve', async (ctx) => {
         writeDB(MEDIA_DB_PATH, mediaDB);
     }
     
+    // Remove from pending
     pending = pending.filter(p => p.id !== pendingId);
     writeDB(PENDING_DB_PATH, pending);
     
