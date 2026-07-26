@@ -61,15 +61,52 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Logging
 app.use((req, res, next) => {
     console.log(`📡 ${req.method} ${req.url}`);
     next();
 });
 
-// ==================== API ROUTES ====================
+// ==================== FIX EXISTING MEDIA ====================
+app.post('/api/fix-media', async (req, res) => {
+    try {
+        const mediaDB = readDB(MEDIA_DB_PATH);
+        let updated = 0;
+        
+        mediaDB.forEach(item => {
+            // Fix: Add isFree field if missing
+            if (item.isFree === undefined) {
+                // If price is 0 or '0' or 'free', set isFree to true
+                if (item.price === 0 || item.price === '0' || item.price === 'free' || item.price === null) {
+                    item.isFree = true;
+                    item.price = 0;
+                } else {
+                    item.isFree = false;
+                }
+                updated++;
+            }
+            
+            // Fix: Ensure price is a number
+            if (typeof item.price === 'string') {
+                item.price = parseFloat(item.price) || 0;
+            }
+        });
+        
+        writeDB(MEDIA_DB_PATH, mediaDB);
+        
+        res.json({
+            success: true,
+            message: `Updated ${updated} media items`,
+            totalMedia: mediaDB.length,
+            freeItems: mediaDB.filter(m => m.isFree).length,
+            paidItems: mediaDB.filter(m => !m.isFree).length
+        });
+    } catch (error) {
+        console.error('Fix media error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
 
-// Health check
+// ==================== HEALTH CHECK ====================
 app.get('/api/health', (req, res) => {
     const mediaDB = readDB(MEDIA_DB_PATH);
     res.json({
@@ -80,7 +117,7 @@ app.get('/api/health', (req, res) => {
     });
 });
 
-// Debug - See all media in database
+// ==================== DEBUG ====================
 app.get('/api/debug/db', (req, res) => {
     try {
         const mediaDB = readDB(MEDIA_DB_PATH);
@@ -97,7 +134,7 @@ app.get('/api/debug/db', (req, res) => {
                     title: m.title,
                     type: m.type,
                     price: m.price,
-                    isFree: m.isFree,
+                    isFree: m.isFree !== undefined ? m.isFree : 'MISSING',
                     date: m.date,
                     fileUrl: m.fileUrl ? 'exists' : 'missing'
                 })),
@@ -119,6 +156,19 @@ app.get('/api/media', (req, res) => {
         
         const mediaDB = readDB(MEDIA_DB_PATH);
         const purchases = readDB(PURCHASES_DB_PATH);
+        
+        // Ensure all media has isFree field
+        let updated = false;
+        mediaDB.forEach(item => {
+            if (item.isFree === undefined) {
+                item.isFree = (item.price === 0 || item.price === '0' || item.price === 'free');
+                updated = true;
+            }
+        });
+        if (updated) {
+            writeDB(MEDIA_DB_PATH, mediaDB);
+            console.log('✅ Fixed missing isFree fields');
+        }
         
         console.log(`📦 Total media in DB: ${mediaDB.length}`);
         
@@ -447,59 +497,12 @@ app.get('/api/my-purchases/:userId', (req, res) => {
     }
 });
 
-// ==================== GET USER INFO ====================
-app.get('/api/user/:userId', (req, res) => {
-    try {
-        const { userId } = req.params;
-        const users = readDB(USERS_DB_PATH);
-        const user = users[userId];
-        
-        if (!user) {
-            return res.status(404).json({
-                success: false,
-                error: 'User not found'
-            });
-        }
-        
-        const purchases = readDB(PURCHASES_DB_PATH);
-        const userPurchases = purchases[userId] || [];
-        
-        const pending = readDB(PENDING_DB_PATH);
-        const userPending = pending.filter(p => p.userId === userId);
-        
-        res.json({
-            success: true,
-            data: {
-                ...user,
-                purchaseCount: userPurchases.length,
-                pendingCount: userPending.length
-            }
-        });
-    } catch (error) {
-        console.error('Error fetching user:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-// ==================== ADMIN API ROUTES ====================
-
-// Check if user is admin
+// ==================== ADMIN ROUTES ====================
 const isAdmin = (req, res, next) => {
-    const adminId = process.env.ADMIN_IDS;
+    const adminIds = process.env.ADMIN_IDS ? process.env.ADMIN_IDS.split(',').map(id => id.trim()) : [];
     const userId = req.headers['x-user-id'] || req.query.userId;
     
-    if (!userId) {
-        return res.status(403).json({
-            success: false,
-            error: 'User ID required'
-        });
-    }
-    
-    const adminIds = adminId.split(',').map(id => id.trim());
-    if (!adminIds.includes(userId)) {
+    if (!userId || !adminIds.includes(userId)) {
         return res.status(403).json({
             success: false,
             error: 'Unauthorized. Admin access required.'
@@ -508,7 +511,6 @@ const isAdmin = (req, res, next) => {
     next();
 };
 
-// Get all pending requests (admin only)
 app.get('/api/admin/pending', isAdmin, (req, res) => {
     try {
         const pending = readDB(PENDING_DB_PATH);
@@ -518,42 +520,10 @@ app.get('/api/admin/pending', isAdmin, (req, res) => {
             data: pending.sort((a, b) => new Date(b.date) - new Date(a.date))
         });
     } catch (error) {
-        console.error('Error fetching pending:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
+        res.status(500).json({ error: error.message });
     }
 });
 
-// Get all users (admin only)
-app.get('/api/admin/users', isAdmin, (req, res) => {
-    try {
-        const users = readDB(USERS_DB_PATH);
-        const purchases = readDB(PURCHASES_DB_PATH);
-        const pending = readDB(PENDING_DB_PATH);
-        
-        const usersWithStats = Object.values(users).map(user => ({
-            ...user,
-            purchaseCount: (purchases[user.id] || []).length,
-            pendingCount: pending.filter(p => p.userId === user.id).length
-        }));
-        
-        res.json({
-            success: true,
-            count: usersWithStats.length,
-            data: usersWithStats
-        });
-    } catch (error) {
-        console.error('Error fetching users:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-// Get revenue stats (admin only)
 app.get('/api/admin/stats', isAdmin, (req, res) => {
     try {
         const mediaDB = readDB(MEDIA_DB_PATH);
@@ -566,7 +536,7 @@ app.get('/api/admin/stats', isAdmin, (req, res) => {
         mediaDB.forEach(media => {
             const count = media.purchases || 0;
             if (!media.isFree) {
-                totalRevenue += count * media.price;
+                totalRevenue += count * (media.price || 0);
             }
             totalPurchases += count;
         });
@@ -581,17 +551,12 @@ app.get('/api/admin/stats', isAdmin, (req, res) => {
                 totalRevenue: totalRevenue,
                 uniqueUsers: uniqueUsers,
                 pendingCount: pending.length,
-                averagePrice: totalPurchases > 0 ? (totalRevenue / totalPurchases) : 0,
                 freeItems: mediaDB.filter(m => m.isFree).length,
                 paidItems: mediaDB.filter(m => !m.isFree).length
             }
         });
     } catch (error) {
-        console.error('Error fetching stats:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
+        res.status(500).json({ error: error.message });
     }
 });
 
@@ -618,13 +583,11 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`📁 Database: ${DB_DIR}`);
     console.log(`👑 Admins: ${ADMIN_IDS.length > 0 ? ADMIN_IDS.join(', ') : 'None!'}`);
-    console.log(`📸 Media API: /api/media`);
     console.log(`🔍 Debug: /api/debug/db`);
-    console.log(`💚 Health: /api/health`);
+    console.log(`🔧 Fix: /api/fix-media (POST)`);
     console.log('='.repeat(50));
 });
 
-// ==================== START BOT ====================
 startBot().catch(error => {
     console.error('❌ Bot error (server still running):', error.message);
 });
