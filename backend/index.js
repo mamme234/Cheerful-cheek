@@ -43,6 +43,7 @@ const readDB = (filePath) => {
 const writeDB = (filePath, data) => {
     try {
         fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+        console.log(`💾 Saved to ${path.basename(filePath)}`);
     } catch (error) {
         console.error(`Error writing ${path.basename(filePath)}:`, error);
     }
@@ -112,8 +113,12 @@ app.get('/api/debug/db', (req, res) => {
 app.get('/api/media', (req, res) => {
     try {
         const { userId } = req.query;
+        console.log(`📸 Fetching media for user: ${userId || 'anonymous'}`);
+        
         const mediaDB = readDB(MEDIA_DB_PATH);
         const purchases = readDB(PURCHASES_DB_PATH);
+        
+        console.log(`📦 Total media in DB: ${mediaDB.length}`);
         
         const userPurchases = purchases[userId] || [];
         
@@ -124,6 +129,8 @@ app.get('/api/media', (req, res) => {
                 isPurchased: userPurchases.includes(item.id)
             }))
             .sort((a, b) => new Date(b.date) - new Date(a.date));
+        
+        console.log(`✅ Returning ${media.length} media items`);
         
         res.json({
             success: true,
@@ -189,6 +196,8 @@ app.get('/api/media/:id', (req, res) => {
 app.post('/api/request-purchase', async (req, res) => {
     try {
         const { userId, mediaId, screenshot, filename } = req.body;
+        
+        console.log(`💳 Purchase request: User ${userId} -> Media ${mediaId}`);
         
         if (!userId || !mediaId) {
             return res.status(400).json({
