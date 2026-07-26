@@ -22,11 +22,18 @@ function init() {
     if (isInitialized) return;
     isInitialized = true;
     
+    console.log('🔍 Checking Telegram WebApp...');
+    console.log('📱 tg exists:', !!tg);
+    
     if (tg) {
         tg.ready();
         tg.expand();
+        
         const user = tg.initDataUnsafe?.user;
+        console.log('👤 Telegram user data:', user);
+        
         if (user) {
+            // REAL TELEGRAM USER - Use this!
             userId = user.id;
             userData = {
                 id: user.id,
@@ -37,9 +44,24 @@ function init() {
                 languageCode: user.language_code || 'en',
                 isPremium: user.is_premium || false
             };
-            updateProfileUI();
+            console.log('✅ Real Telegram user loaded:', userData);
+        } else {
+            // Telegram WebApp exists but no user data
+            console.warn('⚠️ No user data from Telegram. Using fallback.');
+            userId = 'user_' + Date.now();
+            userData = {
+                id: userId,
+                name: 'User',
+                lastName: '',
+                username: 'user',
+                photoUrl: null,
+                languageCode: 'en',
+                isPremium: false
+            };
         }
     } else {
+        // NOT in Telegram - fallback
+        console.warn('⚠️ Not running in Telegram WebApp');
         userId = 'test_user_' + Date.now();
         userData = {
             id: userId,
@@ -50,12 +72,13 @@ function init() {
             languageCode: 'en',
             isPremium: false
         };
-        updateProfileUI();
     }
+    
+    updateProfileUI();
     
     console.log('✅ Mini App initialized');
     console.log('📡 Backend:', BACKEND_URL);
-    console.log('👤 User:', userId);
+    console.log('👤 User:', userData);
     
     setupEventListeners();
     loadApp();
@@ -77,15 +100,21 @@ function updateProfileUI() {
     const nameEl = document.getElementById('profileName');
     const usernameEl = document.getElementById('profileUsername');
     const userBtn = document.getElementById('userAvatar');
+    const userNameDisplay = document.getElementById('userNameDisplay');
     
+    // Set name
     nameEl.textContent = fullName;
+    
+    // Set username with @
     usernameEl.textContent = userData.username ? `@${userData.username}` : '@user';
     
+    // Set avatar with real photo or initial
     if (userData.photoUrl) {
         avatar.style.backgroundImage = `url(${userData.photoUrl})`;
         avatar.style.backgroundSize = 'cover';
         avatar.style.backgroundPosition = 'center';
         avatar.textContent = '';
+        
         userBtn.style.backgroundImage = `url(${userData.photoUrl})`;
         userBtn.style.backgroundSize = 'cover';
         userBtn.style.backgroundPosition = 'center';
@@ -94,19 +123,26 @@ function updateProfileUI() {
         avatar.style.backgroundImage = 'none';
         avatar.style.background = 'var(--tg-primary)';
         avatar.textContent = userData.name.charAt(0).toUpperCase();
+        
         userBtn.style.backgroundImage = 'none';
         userBtn.style.background = 'var(--tg-border)';
         userBtn.textContent = userData.name.charAt(0).toUpperCase();
     }
     
+    // Add premium badge if user is premium
     if (userData.isPremium) {
-        const usernameEl2 = document.querySelector('.profile-username');
-        if (usernameEl2) usernameEl2.innerHTML = `@${userData.username} ⭐ Premium`;
+        usernameEl.innerHTML = `@${userData.username} ⭐ Premium`;
     }
     
+    // Update PayPal email
     document.getElementById('profilePaypalEmail').textContent = ADMIN_PAYPAL_EMAIL;
     document.getElementById('modalPaypalEmail').textContent = ADMIN_PAYPAL_EMAIL;
     document.getElementById('screenshotPaypalEmail').textContent = ADMIN_PAYPAL_EMAIL;
+    
+    // If there's a display name element
+    if (userNameDisplay) {
+        userNameDisplay.textContent = fullName;
+    }
 }
 
 // ==================== EVENT LISTENERS ====================
@@ -332,6 +368,8 @@ function renderGallery(media) {
         `;
         return;
     }
+    
+    console.log('🎨 Rendering gallery with', media.length, 'items');
     
     grid.innerHTML = media.map((item, index) => {
         const isPurchased = item.isPurchased || false;
@@ -605,7 +643,6 @@ async function viewMedia(mediaId) {
         
         // If free, auto-add to purchases
         if (media.isFree && !media.isPurchased) {
-            // Auto-purchase free content
             const autoPurchase = await fetch(`${BACKEND_URL}/api/auto-purchase-free`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
