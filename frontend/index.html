@@ -4,20 +4,22 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#0f0f1a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Premium Gallery</title>
     <link rel="stylesheet" href="style.css" />
 </head>
 <body>
     <div id="app">
-        <!-- Header -->
+        <!-- Telegram Header -->
         <header class="tg-header">
             <div class="header-content">
                 <div class="header-left">
-                    <button class="back-btn" id="backBtn">‹</button>
+                    <button class="back-btn" id="backBtn" aria-label="Back">‹</button>
                     <h1 id="pageTitle">Premium Gallery</h1>
                 </div>
                 <div class="header-right">
-                    <button class="user-btn" id="userBtn">
+                    <button class="user-btn" id="userBtn" aria-label="User">
                         <span id="userAvatar">👤</span>
                     </button>
                 </div>
@@ -51,8 +53,9 @@
             </div>
         </div>
 
-        <!-- Gallery Section -->
+        <!-- ==================== GALLERY SECTION ==================== -->
         <div id="gallerySection" class="content-section active">
+            <!-- Search & Filter -->
             <div class="search-filter">
                 <div class="search-box">
                     <span class="search-icon">🔍</span>
@@ -67,6 +70,7 @@
                 </div>
             </div>
 
+            <!-- Media Grid -->
             <div id="mediaGrid" class="media-grid">
                 <div class="loading-shimmer">
                     <div class="shimmer-card"></div>
@@ -77,14 +81,16 @@
             </div>
         </div>
 
-        <!-- Profile Section -->
+        <!-- ==================== PROFILE DASHBOARD ==================== -->
         <div id="profileSection" class="profile-dashboard">
+            <!-- Profile Header -->
             <div class="profile-header">
                 <div class="profile-avatar" id="profileAvatar">👤</div>
                 <div class="profile-name" id="profileName">User</div>
                 <div class="profile-username" id="profileUsername">@username</div>
             </div>
 
+            <!-- Stats Cards -->
             <div class="profile-stats-grid">
                 <div class="profile-stat-card total">
                     <span class="stat-number" id="profileTotalMedia">0</span>
@@ -100,6 +106,7 @@
                 </div>
             </div>
 
+            <!-- Purchase History -->
             <div class="purchase-history">
                 <h3>📋 Purchase History</h3>
                 <div id="purchaseHistoryList">
@@ -109,13 +116,14 @@
                 </div>
             </div>
 
+            <!-- Admin PayPal Info -->
             <div class="paypal-info-box">
-                <p class="paypal-info-label">💳 PayPal: <strong id="profilePaypalEmail">admin@paypal.com</strong></p>
+                <p class="paypal-info-label">💳 PayPal: <strong id="profilePaypalEmail">lenabotrel65@outlook.com</strong></p>
                 <p class="paypal-info-note">Send payment to this email for manual approval</p>
             </div>
         </div>
 
-        <!-- Bottom Nav -->
+        <!-- Bottom Navigation -->
         <nav class="bottom-nav">
             <button class="nav-item active" data-tab="gallery">
                 <span class="nav-icon">🏠</span>
@@ -128,7 +136,7 @@
             </button>
         </nav>
 
-        <!-- ========== PURCHASE MODAL ========== -->
+        <!-- ==================== PURCHASE MODAL ==================== -->
         <div id="purchaseModal" class="modal-overlay" style="display:none;">
             <div class="modal-container tg-modal">
                 <div class="modal-header">
@@ -136,12 +144,12 @@
                     <button class="modal-close" onclick="closePurchaseModal()">✕</button>
                 </div>
                 <div class="modal-body">
-                    <!-- Locked Preview (NO actual photo/video shown) -->
+                    <!-- Locked Preview -->
                     <div class="modal-preview locked-preview">
                         <div class="locked-preview-content">
                             <div class="lock-icon-large">🔒</div>
                             <p>Premium Content</p>
-                            <p class="lock-subtitle">Pay to unlock</p>
+                            <p class="lock-subtitle" id="modalLockPrice">$5.00</p>
                         </div>
                     </div>
                     <div class="modal-info">
@@ -158,7 +166,7 @@
                             <div class="method-icon">💳</div>
                             <div>
                                 <p class="method-name">PayPal</p>
-                                <p class="method-detail" id="modalPaypalEmail">admin@paypal.com</p>
+                                <p class="method-detail" id="modalPaypalEmail">lenabotrel65@outlook.com</p>
                             </div>
                         </div>
                         <button class="btn-primary btn-pay" onclick="openScreenshotUpload()">
@@ -170,7 +178,7 @@
             </div>
         </div>
 
-        <!-- ========== SCREENSHOT UPLOAD MODAL ========== -->
+        <!-- ==================== SCREENSHOT UPLOAD MODAL ==================== -->
         <div id="screenshotModal" class="modal-overlay" style="display:none;">
             <div class="modal-container tg-modal">
                 <div class="modal-header">
@@ -183,7 +191,7 @@
                         <h3 style="margin-bottom:8px;">Send Payment Screenshot</h3>
                         <p style="color:var(--tg-text-secondary); font-size:14px; margin-bottom:16px;">
                             Upload a screenshot showing your payment to:<br>
-                            <strong id="screenshotPaypalEmail" style="color:var(--tg-text);">admin@paypal.com</strong>
+                            <strong id="screenshotPaypalEmail" style="color:var(--tg-text);">lenabotrel65@outlook.com</strong>
                         </p>
                         <div style="background:var(--tg-bg); border-radius:12px; padding:20px; border:2px dashed var(--tg-border);">
                             <input type="file" id="screenshotInput" accept="image/*" style="display:none;" />
@@ -204,7 +212,7 @@
             </div>
         </div>
 
-        <!-- ========== VIEW MODAL (Only shows if approved) ========== -->
+        <!-- ==================== VIEW MODAL ==================== -->
         <div id="viewModal" class="modal-overlay" style="display:none;">
             <div class="modal-container fullscreen-modal">
                 <div class="view-header">
@@ -219,13 +227,13 @@
             </div>
         </div>
 
-        <!-- Toast -->
+        <!-- ==================== TOAST ==================== -->
         <div id="toast" class="toast" style="display:none;">
             <span id="toastIcon">📢</span>
             <span id="toastMessage">Message</span>
         </div>
 
-        <!-- Loading -->
+        <!-- ==================== LOADING ==================== -->
         <div id="loadingOverlay" class="loading-overlay" style="display:none;">
             <div class="loading-spinner"></div>
             <p>Loading...</p>
