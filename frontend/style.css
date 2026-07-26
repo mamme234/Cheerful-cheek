@@ -50,7 +50,6 @@ body {
     background: var(--tg-bg);
 }
 
-/* ==================== SCROLLBAR ==================== */
 ::-webkit-scrollbar { width: 3px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--tg-border); border-radius: 3px; }
@@ -114,6 +113,8 @@ body {
     justify-content: center;
     font-size: 18px;
     transition: var(--tg-transition);
+    background-size: cover;
+    background-position: center;
 }
 
 .user-btn:hover { background: var(--tg-surface-2); }
@@ -299,7 +300,6 @@ body {
     display: block;
 }
 
-/* LOCKED CONTENT - NO PHOTO SHOWN */
 .media-card .media-wrapper .locked-content {
     width: 100%;
     height: 100%;
@@ -327,7 +327,6 @@ body {
     color: var(--tg-primary);
 }
 
-/* BADGES */
 .media-card .badge {
     position: absolute;
     top: 8px;
@@ -731,7 +730,6 @@ body {
 
 .modal-body { padding: 20px; }
 
-/* LOCKED PREVIEW IN MODAL */
 .modal-preview {
     aspect-ratio: 16/9;
     background: var(--tg-bg);
@@ -805,7 +803,6 @@ body {
     margin: 16px 0;
 }
 
-/* PAYMENT SECTION */
 .payment-section { display: flex; flex-direction: column; gap: 12px; }
 
 .payment-method {
@@ -1031,4 +1028,4 @@ body {
 
 @supports (padding: env(safe-area-inset-bottom)) {
     .bottom-nav { padding-bottom: env(safe-area-inset-bottom); }
-                                   }
+    }
