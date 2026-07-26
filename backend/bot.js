@@ -4,7 +4,6 @@ const path = require('path');
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 
-// Check if token exists
 if (!BOT_TOKEN) {
     console.error('❌ BOT_TOKEN is not set in .env file!');
     process.exit(1);
@@ -19,7 +18,6 @@ const USERS_DB_PATH = path.join(DB_DIR, 'users.json');
 const PENDING_DB_PATH = path.join(DB_DIR, 'pending.json');
 const PURCHASES_DB_PATH = path.join(DB_DIR, 'purchases.json');
 
-// Create bot with error handling
 const bot = new Telegraf(BOT_TOKEN);
 
 // ==================== DATABASE HELPERS ====================
@@ -33,7 +31,6 @@ const readDB = (filePath) => {
             const initialData = filePath.includes('media') ? [] : 
                                filePath.includes('pending') ? [] : {};
             fs.writeFileSync(filePath, JSON.stringify(initialData, null, 2));
-            console.log(`📄 Created new file: ${path.basename(filePath)}`);
             return initialData;
         }
         const data = fs.readFileSync(filePath, 'utf8');
@@ -51,7 +48,6 @@ const writeDB = (filePath, data) => {
             fs.mkdirSync(DB_DIR, { recursive: true });
         }
         fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-        console.log(`💾 Saved to ${path.basename(filePath)}`);
     } catch (error) {
         console.error(`Error writing ${path.basename(filePath)}:`, error);
     }
@@ -149,9 +145,6 @@ bot.on('photo', async (ctx) => {
         const fileId = photo.file_id;
         const fileLink = await ctx.telegram.getFileLink(fileId);
         
-        console.log(`📸 Photo file ID: ${fileId}`);
-        console.log(`📸 Photo URL: ${fileLink.href}`);
-        
         uploadStates[userId].fileId = fileId;
         uploadStates[userId].fileUrl = fileLink.href;
         uploadStates[userId].type = 'photo';
@@ -184,9 +177,6 @@ bot.on('video', async (ctx) => {
         const fileId = video.file_id;
         const fileLink = await ctx.telegram.getFileLink(fileId);
         
-        console.log(`🎬 Video file ID: ${fileId}`);
-        console.log(`🎬 Video URL: ${fileLink.href}`);
-        
         uploadStates[userId].fileId = fileId;
         uploadStates[userId].fileUrl = fileLink.href;
         uploadStates[userId].type = 'video';
@@ -212,12 +202,7 @@ bot.on('text', async (ctx) => {
     const userId = ctx.from.id;
     const text = ctx.message.text;
     
-    // Skip if it's a command
-    if (text.startsWith('/')) {
-        // Let other handlers process commands
-        return;
-    }
-    
+    if (text.startsWith('/')) return;
     if (!isAdmin(userId)) return;
     if (!uploadStates[userId]) return;
     
@@ -279,7 +264,6 @@ bot.on('text', async (ctx) => {
         }
         
         try {
-            // Save to database
             const mediaDB = readDB(MEDIA_DB_PATH);
             const newMedia = {
                 id: `media_${Date.now()}`,
@@ -301,7 +285,6 @@ bot.on('text', async (ctx) => {
             writeDB(MEDIA_DB_PATH, mediaDB);
             
             console.log(`✅ Media saved: ${newMedia.id} - ${newMedia.title}`);
-            console.log(`📊 Total media in DB: ${mediaDB.length}`);
             
             delete uploadStates[userId];
             
@@ -326,7 +309,6 @@ bot.on('text', async (ctx) => {
 // Skip description
 bot.command('skip', async (ctx) => {
     const userId = ctx.from.id;
-    
     if (!isAdmin(userId)) return;
     if (!uploadStates[userId]) return;
     
@@ -354,7 +336,6 @@ bot.command('skip', async (ctx) => {
 
 // ==================== OTHER ADMIN COMMANDS ====================
 
-// List all media
 bot.command('list', async (ctx) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) return ctx.reply('⛔ Admins only.');
@@ -376,7 +357,6 @@ bot.command('list', async (ctx) => {
     ctx.reply(message);
 });
 
-// Delete media
 bot.command('delete', async (ctx) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) return ctx.reply('⛔ Admins only.');
@@ -398,7 +378,8 @@ bot.command('delete', async (ctx) => {
     ctx.reply('✅ Media deleted successfully!');
 });
 
-// Pending approvals
+// ==================== PENDING APPROVALS ====================
+
 bot.command('pending', async (ctx) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) return ctx.reply('⛔ Admins only.');
@@ -420,7 +401,6 @@ bot.command('pending', async (ctx) => {
     ctx.reply(message);
 });
 
-// Approve purchase
 bot.command('approve', async (ctx) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) return ctx.reply('⛔ Admins only.');
@@ -471,7 +451,6 @@ bot.command('approve', async (ctx) => {
     }
 });
 
-// Reject purchase
 bot.command('reject', async (ctx) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) return ctx.reply('⛔ Admins only.');
@@ -507,7 +486,6 @@ bot.command('reject', async (ctx) => {
     }
 });
 
-// Stats
 bot.command('stats', async (ctx) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) return ctx.reply('⛔ Admins only.');
@@ -587,7 +565,6 @@ bot.action('my_pending', async (ctx) => {
 });
 
 // ==================== START BOT ====================
-
 async function startBot() {
     try {
         const me = await bot.telegram.getMe();
@@ -595,7 +572,6 @@ async function startBot() {
         console.log(`📌 Bot ID: ${me.id}`);
         console.log(`👑 Admins: ${ADMIN_IDS.length > 0 ? ADMIN_IDS.join(', ') : 'None set!'}`);
         
-        // Check if media exists
         const mediaDB = readDB(MEDIA_DB_PATH);
         console.log(`📸 Total media in DB: ${mediaDB.length}`);
         
