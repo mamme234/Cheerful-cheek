@@ -67,8 +67,10 @@ app.use((req, res, next) => {
 });
 
 // ==================== FIX EXISTING MEDIA ====================
-app.post('/api/fix-media', async (req, res) => {
+app.get('/api/fix-media', async (req, res) => {
     try {
+        console.log('🔧 Running media fix...');
+        
         const mediaDB = readDB(MEDIA_DB_PATH);
         let updated = 0;
         
@@ -98,7 +100,14 @@ app.post('/api/fix-media', async (req, res) => {
             message: `Updated ${updated} media items`,
             totalMedia: mediaDB.length,
             freeItems: mediaDB.filter(m => m.isFree).length,
-            paidItems: mediaDB.filter(m => !m.isFree).length
+            paidItems: mediaDB.filter(m => !m.isFree).length,
+            media: mediaDB.map(m => ({
+                id: m.id,
+                title: m.title,
+                isFree: m.isFree,
+                price: m.price,
+                type: m.type
+            }))
         });
     } catch (error) {
         console.error('Fix media error:', error);
@@ -584,7 +593,7 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`📁 Database: ${DB_DIR}`);
     console.log(`👑 Admins: ${ADMIN_IDS.length > 0 ? ADMIN_IDS.join(', ') : 'None!'}`);
     console.log(`🔍 Debug: /api/debug/db`);
-    console.log(`🔧 Fix: /api/fix-media (POST)`);
+    console.log(`🔧 Fix: /api/fix-media`);
     console.log('='.repeat(50));
 });
 
