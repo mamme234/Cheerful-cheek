@@ -29,6 +29,7 @@ const readDB = (filePath) => {
             const initialData = filePath.includes('media') ? [] : 
                                filePath.includes('pending') ? [] : {};
             fs.writeFileSync(filePath, JSON.stringify(initialData, null, 2));
+            console.log(`📄 Created new file: ${path.basename(filePath)}`);
             return initialData;
         }
         const data = fs.readFileSync(filePath, 'utf8');
@@ -60,6 +61,7 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// Logging
 app.use((req, res, next) => {
     console.log(`📡 ${req.method} ${req.url}`);
     next();
@@ -109,7 +111,7 @@ app.get('/api/debug/db', (req, res) => {
     }
 });
 
-// Get all media
+// ==================== GET ALL MEDIA ====================
 app.get('/api/media', (req, res) => {
     try {
         const { userId } = req.query;
@@ -146,11 +148,13 @@ app.get('/api/media', (req, res) => {
     }
 });
 
-// Get single media
+// ==================== GET SINGLE MEDIA ====================
 app.get('/api/media/:id', (req, res) => {
     try {
         const { id } = req.params;
         const { userId } = req.query;
+        
+        console.log(`📸 Fetching media ${id} for user: ${userId || 'anonymous'}`);
         
         const mediaDB = readDB(MEDIA_DB_PATH);
         const media = mediaDB.find(m => m.id === id);
@@ -192,7 +196,76 @@ app.get('/api/media/:id', (req, res) => {
     }
 });
 
-// Request purchase
+// ==================== AUTO-PURCHASE FREE CONTENT ====================
+app.post('/api/auto-purchase-free', async (req, res) => {
+    try {
+        const { userId, mediaId } = req.body;
+        
+        console.log(`🎁 Auto-purchasing free content: User ${userId} -> Media ${mediaId}`);
+        
+        if (!userId || !mediaId) {
+            return res.status(400).json({
+                success: false,
+                error: 'User ID and Media ID required'
+            });
+        }
+        
+        const mediaDB = readDB(MEDIA_DB_PATH);
+        const media = mediaDB.find(m => m.id === mediaId);
+        
+        if (!media) {
+            return res.status(404).json({
+                success: false,
+                error: 'Media not found'
+            });
+        }
+        
+        // Check if it's free
+        if (!media.isFree) {
+            return res.status(400).json({
+                success: false,
+                error: 'This is not free content'
+            });
+        }
+        
+        // Check if already purchased
+        const purchases = readDB(PURCHASES_DB_PATH);
+        if (purchases[userId]?.includes(mediaId)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Already purchased'
+            });
+        }
+        
+        // Add to purchases
+        if (!purchases[userId]) {
+            purchases[userId] = [];
+        }
+        purchases[userId].push(mediaId);
+        writeDB(PURCHASES_DB_PATH, purchases);
+        
+        // Update media purchase count
+        media.purchases = (media.purchases || 0) + 1;
+        writeDB(MEDIA_DB_PATH, mediaDB);
+        
+        console.log(`✅ Free content auto-purchased for user ${userId}`);
+        
+        res.json({
+            success: true,
+            message: 'Free content unlocked!',
+            mediaId: mediaId
+        });
+        
+    } catch (error) {
+        console.error('Auto-purchase error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// ==================== REQUEST PURCHASE (Paid) ====================
 app.post('/api/request-purchase', async (req, res) => {
     try {
         const { userId, mediaId, screenshot, filename } = req.body;
@@ -216,6 +289,7 @@ app.post('/api/request-purchase', async (req, res) => {
             });
         }
         
+        // Check if already purchased
         const purchases = readDB(PURCHASES_DB_PATH);
         if (purchases[userId]?.includes(mediaId)) {
             return res.status(400).json({
@@ -224,6 +298,7 @@ app.post('/api/request-purchase', async (req, res) => {
             });
         }
         
+        // Check if already pending
         const pending = readDB(PENDING_DB_PATH);
         const existing = pending.find(p => p.userId === userId && p.mediaId === mediaId);
         if (existing) {
@@ -233,9 +308,11 @@ app.post('/api/request-purchase', async (req, res) => {
             });
         }
         
+        // Get user info
         const users = readDB(USERS_DB_PATH);
         const user = users[userId] || { username: 'Unknown', firstName: 'User' };
         
+        // Create pending request
         const request = {
             id: `pending_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
             userId: userId,
@@ -276,6 +353,8 @@ app.post('/api/request-purchase', async (req, res) => {
                 } else {
                     await bot.telegram.sendMessage(adminId, message, { parse_mode: 'Markdown' });
                 }
+                
+                console.log(`✅ Admin ${adminId} notified`);
             } catch (error) {
                 console.error(`Failed to notify admin ${adminId}:`, error.message);
             }
@@ -300,7 +379,7 @@ app.post('/api/request-purchase', async (req, res) => {
     }
 });
 
-// Check pending status
+// ==================== CHECK PENDING STATUS ====================
 app.get('/api/pending-status/:userId/:mediaId', (req, res) => {
     try {
         const { userId, mediaId } = req.params;
@@ -321,7 +400,7 @@ app.get('/api/pending-status/:userId/:mediaId', (req, res) => {
     }
 });
 
-// Get user's pending
+// ==================== GET USER'S PENDING ====================
 app.get('/api/my-pending/:userId', (req, res) => {
     try {
         const { userId } = req.params;
@@ -342,7 +421,7 @@ app.get('/api/my-pending/:userId', (req, res) => {
     }
 });
 
-// Get user's purchases
+// ==================== GET USER'S PURCHASES ====================
 app.get('/api/my-purchases/:userId', (req, res) => {
     try {
         const { userId } = req.params;
@@ -368,18 +447,186 @@ app.get('/api/my-purchases/:userId', (req, res) => {
     }
 });
 
+// ==================== GET USER INFO ====================
+app.get('/api/user/:userId', (req, res) => {
+    try {
+        const { userId } = req.params;
+        const users = readDB(USERS_DB_PATH);
+        const user = users[userId];
+        
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                error: 'User not found'
+            });
+        }
+        
+        const purchases = readDB(PURCHASES_DB_PATH);
+        const userPurchases = purchases[userId] || [];
+        
+        const pending = readDB(PENDING_DB_PATH);
+        const userPending = pending.filter(p => p.userId === userId);
+        
+        res.json({
+            success: true,
+            data: {
+                ...user,
+                purchaseCount: userPurchases.length,
+                pendingCount: userPending.length
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching user:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// ==================== ADMIN API ROUTES ====================
+
+// Check if user is admin
+const isAdmin = (req, res, next) => {
+    const adminId = process.env.ADMIN_IDS;
+    const userId = req.headers['x-user-id'] || req.query.userId;
+    
+    if (!userId) {
+        return res.status(403).json({
+            success: false,
+            error: 'User ID required'
+        });
+    }
+    
+    const adminIds = adminId.split(',').map(id => id.trim());
+    if (!adminIds.includes(userId)) {
+        return res.status(403).json({
+            success: false,
+            error: 'Unauthorized. Admin access required.'
+        });
+    }
+    next();
+};
+
+// Get all pending requests (admin only)
+app.get('/api/admin/pending', isAdmin, (req, res) => {
+    try {
+        const pending = readDB(PENDING_DB_PATH);
+        res.json({
+            success: true,
+            count: pending.length,
+            data: pending.sort((a, b) => new Date(b.date) - new Date(a.date))
+        });
+    } catch (error) {
+        console.error('Error fetching pending:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// Get all users (admin only)
+app.get('/api/admin/users', isAdmin, (req, res) => {
+    try {
+        const users = readDB(USERS_DB_PATH);
+        const purchases = readDB(PURCHASES_DB_PATH);
+        const pending = readDB(PENDING_DB_PATH);
+        
+        const usersWithStats = Object.values(users).map(user => ({
+            ...user,
+            purchaseCount: (purchases[user.id] || []).length,
+            pendingCount: pending.filter(p => p.userId === user.id).length
+        }));
+        
+        res.json({
+            success: true,
+            count: usersWithStats.length,
+            data: usersWithStats
+        });
+    } catch (error) {
+        console.error('Error fetching users:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// Get revenue stats (admin only)
+app.get('/api/admin/stats', isAdmin, (req, res) => {
+    try {
+        const mediaDB = readDB(MEDIA_DB_PATH);
+        const purchases = readDB(PURCHASES_DB_PATH);
+        const pending = readDB(PENDING_DB_PATH);
+        
+        let totalRevenue = 0;
+        let totalPurchases = 0;
+        
+        mediaDB.forEach(media => {
+            const count = media.purchases || 0;
+            if (!media.isFree) {
+                totalRevenue += count * media.price;
+            }
+            totalPurchases += count;
+        });
+        
+        const uniqueUsers = Object.keys(purchases).length;
+        
+        res.json({
+            success: true,
+            data: {
+                totalMedia: mediaDB.length,
+                totalPurchases: totalPurchases,
+                totalRevenue: totalRevenue,
+                uniqueUsers: uniqueUsers,
+                pendingCount: pending.length,
+                averagePrice: totalPurchases > 0 ? (totalRevenue / totalPurchases) : 0,
+                freeItems: mediaDB.filter(m => m.isFree).length,
+                paidItems: mediaDB.filter(m => !m.isFree).length
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching stats:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// ==================== 404 HANDLER ====================
+app.use((req, res) => {
+    res.status(404).json({
+        success: false,
+        error: `Route not found: ${req.method} ${req.url}`
+    });
+});
+
+// ==================== ERROR HANDLER ====================
+app.use((err, req, res, next) => {
+    console.error('❌ Server error:', err.stack);
+    res.status(500).json({
+        success: false,
+        error: err.message || 'Internal server error'
+    });
+});
+
 // ==================== START SERVER ====================
 app.listen(PORT, '0.0.0.0', () => {
     console.log('='.repeat(50));
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`📁 Database: ${DB_DIR}`);
     console.log(`👑 Admins: ${ADMIN_IDS.length > 0 ? ADMIN_IDS.join(', ') : 'None!'}`);
+    console.log(`📸 Media API: /api/media`);
     console.log(`🔍 Debug: /api/debug/db`);
+    console.log(`💚 Health: /api/health`);
     console.log('='.repeat(50));
 });
 
+// ==================== START BOT ====================
 startBot().catch(error => {
-    console.error('❌ Bot error:', error.message);
+    console.error('❌ Bot error (server still running):', error.message);
 });
 
 module.exports = { app };
