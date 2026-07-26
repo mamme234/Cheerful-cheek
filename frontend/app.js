@@ -1,5 +1,5 @@
 // ==================== CONFIGURATION ====================
-const BACKEND_URL = 'https://cheerful-cheek.onrender.com';
+const BACKEND_URL = 'https://cheerful-cheek.onrender.com/api';
 
 // ==================== STATE ====================
 let tg = window.Telegram?.WebApp;
@@ -24,6 +24,7 @@ function init() {
     
     console.log('🔍 Checking Telegram WebApp...');
     console.log('📱 tg exists:', !!tg);
+    console.log('📡 Backend URL:', BACKEND_URL);
     
     if (tg) {
         tg.ready();
@@ -33,7 +34,6 @@ function init() {
         console.log('👤 Telegram user data:', user);
         
         if (user) {
-            // REAL TELEGRAM USER
             userId = user.id;
             userData = {
                 id: user.id,
@@ -46,12 +46,7 @@ function init() {
             };
             console.log('✅ Real Telegram user loaded:', userData);
         } else {
-            // Try to get user from initData
-            console.warn('⚠️ No user data from Telegram. Checking initData...');
-            const initData = tg.initData;
-            console.log('📦 initData:', initData);
-            
-            // Check if we have a user ID from URL params
+            console.warn('⚠️ No user data from Telegram.');
             const urlParams = new URLSearchParams(window.location.search);
             const userIdParam = urlParams.get('userId');
             
@@ -68,8 +63,6 @@ function init() {
                 };
                 console.log('✅ User from URL params:', userData);
             } else {
-                // Use fallback but log warning
-                console.warn('⚠️ Using fallback user - check bot setup');
                 userId = 'user_' + Date.now();
                 userData = {
                     id: userId,
@@ -80,10 +73,10 @@ function init() {
                     languageCode: 'en',
                     isPremium: false
                 };
+                console.log('⚠️ Using fallback user:', userData);
             }
         }
     } else {
-        // NOT in Telegram - check URL params
         console.warn('⚠️ Not running in Telegram WebApp');
         const urlParams = new URLSearchParams(window.location.search);
         const userIdParam = urlParams.get('userId');
@@ -118,7 +111,6 @@ function init() {
     updateProfileUI();
     
     console.log('✅ Mini App initialized');
-    console.log('📡 Backend:', BACKEND_URL);
     console.log('👤 Final User:', userData);
     
     setupEventListeners();
@@ -142,13 +134,9 @@ function updateProfileUI() {
     const usernameEl = document.getElementById('profileUsername');
     const userBtn = document.getElementById('userAvatar');
     
-    // Set name
     nameEl.textContent = fullName;
-    
-    // Set username with @
     usernameEl.textContent = userData.username ? `@${userData.username}` : '@user';
     
-    // Set avatar with real photo or initial
     if (userData.photoUrl) {
         avatar.style.backgroundImage = `url(${userData.photoUrl})`;
         avatar.style.backgroundSize = 'cover';
@@ -169,12 +157,10 @@ function updateProfileUI() {
         userBtn.textContent = userData.name.charAt(0).toUpperCase();
     }
     
-    // Add premium badge if user is premium
     if (userData.isPremium) {
         usernameEl.innerHTML = `@${userData.username} ⭐ Premium`;
     }
     
-    // Update PayPal email
     document.getElementById('profilePaypalEmail').textContent = ADMIN_PAYPAL_EMAIL;
     document.getElementById('modalPaypalEmail').textContent = ADMIN_PAYPAL_EMAIL;
     document.getElementById('screenshotPaypalEmail').textContent = ADMIN_PAYPAL_EMAIL;
@@ -303,32 +289,37 @@ async function loadApp() {
     }
 }
 
+// ==================== FETCH FUNCTIONS ====================
 async function loadMedia() {
     try {
-        const response = await fetch(`${BACKEND_URL}/api/media?userId=${userId}`);
+        const response = await fetch(`${BACKEND_URL}/media?userId=${userId}`);
         const result = await response.json();
         
         if (result.success) {
             allMedia = result.data || [];
             console.log('📸 Media loaded:', allMedia.length, 'items');
             renderGallery(allMedia);
+        } else {
+            console.error('❌ API returned error:', result);
+            showToast('Failed to load media', 'error');
         }
     } catch (error) {
         console.error('Load media error:', error);
+        showToast('Network error loading media', 'error');
         throw error;
     }
 }
 
 async function updateStats() {
     try {
-        const purchaseRes = await fetch(`${BACKEND_URL}/api/my-purchases/${userId}`);
+        const purchaseRes = await fetch(`${BACKEND_URL}/my-purchases/${userId}`);
         const purchaseData = await purchaseRes.json();
         if (purchaseData.success) {
             document.getElementById('purchaseCount').textContent = purchaseData.count || 0;
             document.getElementById('navBadge').textContent = purchaseData.count || 0;
         }
         
-        const pendingRes = await fetch(`${BACKEND_URL}/api/my-pending/${userId}`);
+        const pendingRes = await fetch(`${BACKEND_URL}/my-pending/${userId}`);
         const pendingData = await pendingRes.json();
         if (pendingData.success) {
             document.getElementById('pendingCount').textContent = pendingData.count || 0;
@@ -340,13 +331,12 @@ async function updateStats() {
     }
 }
 
-// ==================== PROFILE DATA ====================
 async function loadProfileData() {
     try {
-        const purchaseRes = await fetch(`${BACKEND_URL}/api/my-purchases/${userId}`);
+        const purchaseRes = await fetch(`${BACKEND_URL}/my-purchases/${userId}`);
         const purchaseData = await purchaseRes.json();
         
-        const pendingRes = await fetch(`${BACKEND_URL}/api/my-pending/${userId}`);
+        const pendingRes = await fetch(`${BACKEND_URL}/my-pending/${userId}`);
         const pendingData = await pendingRes.json();
         
         const totalMedia = allMedia.length || 0;
@@ -364,6 +354,7 @@ async function loadProfileData() {
     }
 }
 
+// ==================== RENDER FUNCTIONS ====================
 function renderPurchaseHistory(purchases) {
     const container = document.getElementById('purchaseHistoryList');
     
@@ -389,7 +380,6 @@ function renderPurchaseHistory(purchases) {
     `).join('');
 }
 
-// ==================== RENDER GALLERY ====================
 function renderGallery(media) {
     const grid = document.getElementById('mediaGrid');
     
@@ -399,6 +389,9 @@ function renderGallery(media) {
                 <div class="empty-icon">📭</div>
                 <h3>No Content Available</h3>
                 <p>Check back later for new uploads</p>
+                <p style="font-size:12px; color:var(--tg-text-muted); margin-top:8px;">
+                    💡 Admin: Upload content using /upload
+                </p>
             </div>
         `;
         return;
@@ -415,11 +408,9 @@ function renderGallery(media) {
         let actionsHTML = '';
         let previewContent = '';
         
-        // If free and not purchased, auto-unlock
         const shouldShowContent = isPurchased || isFree;
         
         if (shouldShowContent) {
-            // Show the actual photo/video (Free or Purchased)
             if (isFree && !isPurchased) {
                 badgeHTML = `<div class="badge badge-free">🎉 FREE</div>`;
             } else {
@@ -445,7 +436,6 @@ function renderGallery(media) {
             }
             
         } else if (isPending) {
-            // PENDING - Show lock with pending badge
             badgeHTML = `<div class="badge badge-pending">⏳ Pending</div>`;
             actionsHTML = `
                 <button class="btn-action btn-pending" disabled>
@@ -461,7 +451,6 @@ function renderGallery(media) {
             `;
             
         } else {
-            // LOCKED - Show lock with buy button
             const priceText = `$${item.price || 5.00}`;
             badgeHTML = `<div class="badge badge-price">${priceText}</div>`;
             actionsHTML = `
@@ -530,7 +519,6 @@ function openPurchaseModal(mediaId) {
         return;
     }
     
-    // If free, just unlock and view
     if (media.isFree) {
         showToast('🎉 This content is FREE! Enjoy!', 'success');
         viewMedia(mediaId);
@@ -540,8 +528,7 @@ function openPurchaseModal(mediaId) {
     currentModalMedia = media;
     pendingMediaId = mediaId;
     
-    // Check if already pending
-    fetch(`${BACKEND_URL}/api/pending-status/${userId}/${mediaId}`)
+    fetch(`${BACKEND_URL}/pending-status/${userId}/${mediaId}`)
         .then(res => res.json())
         .then(result => {
             if (result.isPending) {
@@ -549,14 +536,12 @@ function openPurchaseModal(mediaId) {
                 return;
             }
             
-            // Set modal content
             document.getElementById('modalTitle').textContent = media.title || 'Untitled';
             document.getElementById('modalDescription').textContent = media.description || 'No description';
             document.getElementById('modalPrice').textContent = (media.price || 5.00).toFixed(2);
             document.getElementById('modalPaypalEmail').textContent = ADMIN_PAYPAL_EMAIL;
             document.getElementById('modalLockPrice').textContent = '$' + (media.price || 5.00).toFixed(2);
             
-            // LOCKED preview - no actual media shown
             const preview = document.getElementById('modalPreview');
             preview.className = 'modal-preview locked-preview';
             preview.innerHTML = `
@@ -567,13 +552,11 @@ function openPurchaseModal(mediaId) {
                 </div>
             `;
             
-            // Show the modal
             document.getElementById('purchaseModal').style.display = 'flex';
             document.body.style.overflow = 'hidden';
         })
         .catch(error => {
             console.error('Pending check error:', error);
-            // Still show the modal even if check fails
             document.getElementById('modalTitle').textContent = media.title || 'Untitled';
             document.getElementById('modalDescription').textContent = media.description || 'No description';
             document.getElementById('modalPrice').textContent = (media.price || 5.00).toFixed(2);
@@ -631,7 +614,7 @@ async function submitScreenshot() {
             reader.readAsDataURL(selectedScreenshot);
         });
         
-        const response = await fetch(`${BACKEND_URL}/api/request-purchase`, {
+        const response = await fetch(`${BACKEND_URL}/request-purchase`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -666,7 +649,7 @@ async function viewMedia(mediaId) {
     console.log('👁️ Viewing media:', mediaId);
     
     try {
-        const response = await fetch(`${BACKEND_URL}/api/media/${mediaId}?userId=${userId}`);
+        const response = await fetch(`${BACKEND_URL}/media/${mediaId}?userId=${userId}`);
         const result = await response.json();
         
         if (!result.success) {
@@ -676,9 +659,8 @@ async function viewMedia(mediaId) {
         
         const media = result.data;
         
-        // If free, auto-add to purchases
         if (media.isFree && !media.isPurchased) {
-            const autoPurchase = await fetch(`${BACKEND_URL}/api/auto-purchase-free`, {
+            const autoPurchase = await fetch(`${BACKEND_URL}/auto-purchase-free`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId, mediaId })
