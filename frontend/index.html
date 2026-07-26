@@ -1,5 +1,5 @@
-<!-- frontend/index.html -->
 <!DOCTYPE html>
+<!-- frontend/index.html -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -53,11 +53,11 @@
                         <img src="background.png" alt="Admin" class="chat-avatar">
                         <div class="chat-info">
                             <h4>Admin</h4>
-                            <p class="last-msg">Welcome to Cheerful Chick!</p>
+                            <p class="last-msg" id="lastMsg">Welcome to Cheerful Chick!</p>
                         </div>
                         <div class="chat-meta">
-                            <span class="chat-time">Now</span>
-                            <span class="unread-badge">1</span>
+                            <span class="chat-time" id="lastMsgTime">Now</span>
+                            <span class="unread-badge" id="unreadBadge">1</span>
                         </div>
                     </div>
                 </div>
@@ -67,10 +67,15 @@
                         <img src="background.png" alt="Admin" class="chat-avatar">
                         <div>
                             <h4>Admin</h4>
-                            <span class="online-status">Online</span>
+                            <span class="online-status">● Online</span>
                         </div>
                     </div>
-                    <div class="messages" id="messages"></div>
+                    <div class="messages" id="messages">
+                        <div class="message received">
+                            <div>Welcome to Cheerful Chick! How can I help you today?</div>
+                            <span class="message-time">Just now</span>
+                        </div>
+                    </div>
                     <div class="chat-input">
                         <button class="input-btn"><i class="fas fa-plus"></i></button>
                         <button class="input-btn"><i class="fas fa-smile"></i></button>
@@ -84,7 +89,7 @@
             <!-- Profile Page -->
             <div id="profilePage" class="page">
                 <div class="profile-header">
-                    <img src="background.png" alt="Profile" class="profile-avatar">
+                    <img src="background.png" alt="Profile" class="profile-avatar" id="profileAvatar">
                     <h2 id="displayName">User</h2>
                     <p id="username">@username</p>
                     <p id="userBio">Welcome to Cheerful Chick!</p>
@@ -183,6 +188,7 @@
         </div>
     </div>
 
+    <script src="config.js"></script>
     <script src="app.js"></script>
 </body>
-                        </html>
+                                </html>
