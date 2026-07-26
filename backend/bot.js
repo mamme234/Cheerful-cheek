@@ -3,8 +3,15 @@ const fs = require('fs');
 const path = require('path');
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
+
+// Check if token exists
+if (!BOT_TOKEN) {
+    console.error('❌ BOT_TOKEN is not set in .env file!');
+    process.exit(1);
+}
+
 const ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
-const ADMIN_USERNAME = process.env.ADMIN_USERNAME || '@cheerfulchi';
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || '@KING_OF_ALPHA';
 
 const DB_DIR = process.env.DB_DIR || path.join(__dirname, 'database');
 const MEDIA_DB_PATH = path.join(DB_DIR, 'media.json');
@@ -12,6 +19,7 @@ const USERS_DB_PATH = path.join(DB_DIR, 'users.json');
 const PENDING_DB_PATH = path.join(DB_DIR, 'pending.json');
 const PURCHASES_DB_PATH = path.join(DB_DIR, 'purchases.json');
 
+// Create bot with error handling
 const bot = new Telegraf(BOT_TOKEN);
 
 // ==================== DATABASE HELPERS ====================
@@ -19,17 +27,19 @@ const readDB = (filePath) => {
     try {
         if (!fs.existsSync(DB_DIR)) {
             fs.mkdirSync(DB_DIR, { recursive: true });
+            console.log('📁 Created database directory');
         }
         if (!fs.existsSync(filePath)) {
             const initialData = filePath.includes('media') ? [] : 
                                filePath.includes('pending') ? [] : {};
             fs.writeFileSync(filePath, JSON.stringify(initialData, null, 2));
+            console.log(`📄 Created new file: ${path.basename(filePath)}`);
             return initialData;
         }
         const data = fs.readFileSync(filePath, 'utf8');
         return JSON.parse(data);
     } catch (error) {
-        console.error(`Error reading ${filePath}:`, error);
+        console.error(`Error reading ${path.basename(filePath)}:`, error);
         return filePath.includes('media') ? [] : 
                filePath.includes('pending') ? [] : {};
     }
@@ -41,8 +51,9 @@ const writeDB = (filePath, data) => {
             fs.mkdirSync(DB_DIR, { recursive: true });
         }
         fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+        console.log(`💾 Saved to ${path.basename(filePath)}`);
     } catch (error) {
-        console.error(`Error writing ${filePath}:`, error);
+        console.error(`Error writing ${path.basename(filePath)}:`, error);
     }
 };
 
@@ -51,11 +62,60 @@ const isAdmin = (userId) => ADMIN_IDS.includes(userId);
 // ==================== UPLOAD STATE ====================
 let uploadStates = {};
 
-// ==================== ADMIN COMMANDS ====================
+// ==================== START COMMAND ====================
+bot.command('start', async (ctx) => {
+    const userId = ctx.from.id;
+    console.log(`👤 User /start: ${userId} (${ctx.from.username || 'no username'})`);
+    
+    const users = readDB(USERS_DB_PATH);
+    
+    if (!users[userId]) {
+        users[userId] = {
+            id: userId,
+            username: ctx.from.username || 'Unknown',
+            firstName: ctx.from.first_name || 'User',
+            registeredAt: new Date().toISOString()
+        };
+        writeDB(USERS_DB_PATH, users);
+    }
+    
+    const pending = readDB(PENDING_DB_PATH);
+    const userPending = pending.filter(p => p.userId === userId);
+    const purchases = readDB(PURCHASES_DB_PATH);
+    const userPurchases = purchases[userId] || [];
+    
+    ctx.reply(
+        `👋 Welcome ${ctx.from.first_name || 'User'}!\n\n` +
+        `📸 **Premium Gallery**\n` +
+        `🛒 Your purchases: ${userPurchases.length}\n` +
+        `⏳ Pending approvals: ${userPending.length}\n\n` +
+        `How it works:\n` +
+        `1️⃣ Browse media in the gallery\n` +
+        `2️⃣ Click "Buy" on any item\n` +
+        `3️⃣ Pay via PayPal\n` +
+        `4️⃣ Upload screenshot\n` +
+        `5️⃣ Admin approves → content unlocked!`,
+        {
+            parse_mode: 'Markdown',
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: '🎨 Open Gallery', web_app: { url: process.env.FRONTEND_URL || 'https://cheerful-cheek.vercel.app' } }],
+                    [{ text: '📋 My Purchases', callback_data: 'my_purchases' }],
+                    [{ text: '⏳ Pending Requests', callback_data: 'my_pending' }]
+                ]
+            }
+        }
+    );
+});
 
+// ==================== ADMIN UPLOAD ====================
 bot.command('upload', async (ctx) => {
     const userId = ctx.from.id;
-    if (!isAdmin(userId)) return ctx.reply('⛔ Only admins can upload media.');
+    console.log(`👑 Admin upload: ${userId}`);
+    
+    if (!isAdmin(userId)) {
+        return ctx.reply('⛔ Only admins can upload media.');
+    }
     
     uploadStates[userId] = { step: 'media' };
     ctx.reply(
@@ -79,6 +139,8 @@ bot.command('cancel', async (ctx) => {
 // Handle photo upload
 bot.on('photo', async (ctx) => {
     const userId = ctx.from.id;
+    console.log(`📸 Photo received from: ${userId}`);
+    
     if (!isAdmin(userId)) return;
     if (!uploadStates[userId] || uploadStates[userId].step !== 'media') return;
     
@@ -86,6 +148,9 @@ bot.on('photo', async (ctx) => {
         const photo = ctx.message.photo[ctx.message.photo.length - 1];
         const fileId = photo.file_id;
         const fileLink = await ctx.telegram.getFileLink(fileId);
+        
+        console.log(`📸 Photo file ID: ${fileId}`);
+        console.log(`📸 Photo URL: ${fileLink.href}`);
         
         uploadStates[userId].fileId = fileId;
         uploadStates[userId].fileUrl = fileLink.href;
@@ -109,6 +174,8 @@ bot.on('photo', async (ctx) => {
 // Handle video upload
 bot.on('video', async (ctx) => {
     const userId = ctx.from.id;
+    console.log(`🎬 Video received from: ${userId}`);
+    
     if (!isAdmin(userId)) return;
     if (!uploadStates[userId] || uploadStates[userId].step !== 'media') return;
     
@@ -116,6 +183,9 @@ bot.on('video', async (ctx) => {
         const video = ctx.message.video;
         const fileId = video.file_id;
         const fileLink = await ctx.telegram.getFileLink(fileId);
+        
+        console.log(`🎬 Video file ID: ${fileId}`);
+        console.log(`🎬 Video URL: ${fileLink.href}`);
         
         uploadStates[userId].fileId = fileId;
         uploadStates[userId].fileUrl = fileLink.href;
@@ -137,16 +207,22 @@ bot.on('video', async (ctx) => {
     }
 });
 
-// Handle text input for title, description, price
+// Handle text input
 bot.on('text', async (ctx) => {
     const userId = ctx.from.id;
     const text = ctx.message.text;
     
+    // Skip if it's a command
+    if (text.startsWith('/')) {
+        // Let other handlers process commands
+        return;
+    }
+    
     if (!isAdmin(userId)) return;
     if (!uploadStates[userId]) return;
-    if (text.startsWith('/')) return;
     
     const state = uploadStates[userId];
+    console.log(`📝 Text input: "${text}" from admin ${userId}, step: ${state.step}`);
     
     // Step 2: Title
     if (state.step === 'title') {
@@ -203,6 +279,7 @@ bot.on('text', async (ctx) => {
         }
         
         try {
+            // Save to database
             const mediaDB = readDB(MEDIA_DB_PATH);
             const newMedia = {
                 id: `media_${Date.now()}`,
@@ -223,26 +300,10 @@ bot.on('text', async (ctx) => {
             mediaDB.push(newMedia);
             writeDB(MEDIA_DB_PATH, mediaDB);
             
-            delete uploadStates[userId];
+            console.log(`✅ Media saved: ${newMedia.id} - ${newMedia.title}`);
+            console.log(`📊 Total media in DB: ${mediaDB.length}`);
             
-            // Notify all admins
-            for (const adminId of ADMIN_IDS) {
-                if (adminId !== userId) {
-                    try {
-                        await bot.telegram.sendMessage(
-                            adminId,
-                            `📢 **New Content Uploaded**\n\n` +
-                            `📌 Title: *${newMedia.title}*\n` +
-                            `💰 Price: *${isFree ? 'FREE 🎉' : '$' + price.toFixed(2)}*\n` +
-                            `📷 Type: *${newMedia.type}*\n` +
-                            `🆔 ID: *${newMedia.id}*`,
-                            { parse_mode: 'Markdown' }
-                        );
-                    } catch (e) {
-                        console.error('Failed to notify admin:', e);
-                    }
-                }
-            }
+            delete uploadStates[userId];
             
             ctx.reply(
                 `✅ **Content uploaded successfully!**\n\n` +
@@ -265,6 +326,7 @@ bot.on('text', async (ctx) => {
 // Skip description
 bot.command('skip', async (ctx) => {
     const userId = ctx.from.id;
+    
     if (!isAdmin(userId)) return;
     if (!uploadStates[userId]) return;
     
@@ -289,6 +351,8 @@ bot.command('skip', async (ctx) => {
         ctx.reply('ℹ️ You can only skip the description step.');
     }
 });
+
+// ==================== OTHER ADMIN COMMANDS ====================
 
 // List all media
 bot.command('list', async (ctx) => {
@@ -480,51 +544,7 @@ bot.command('stats', async (ctx) => {
     );
 });
 
-// ==================== USER COMMANDS ====================
-
-bot.command('start', async (ctx) => {
-    const userId = ctx.from.id;
-    const users = readDB(USERS_DB_PATH);
-    
-    if (!users[userId]) {
-        users[userId] = {
-            id: userId,
-            username: ctx.from.username || 'Unknown',
-            firstName: ctx.from.first_name || 'User',
-            registeredAt: new Date().toISOString()
-        };
-        writeDB(USERS_DB_PATH, users);
-    }
-    
-    const pending = readDB(PENDING_DB_PATH);
-    const userPending = pending.filter(p => p.userId === userId);
-    const purchases = readDB(PURCHASES_DB_PATH);
-    const userPurchases = purchases[userId] || [];
-    
-    ctx.reply(
-        `👋 Welcome ${ctx.from.first_name || 'User'}!\n\n` +
-        `📸 **Premium Gallery**\n` +
-        `🛒 Your purchases: ${userPurchases.length}\n` +
-        `⏳ Pending approvals: ${userPending.length}\n\n` +
-        `How it works:\n` +
-        `1️⃣ Browse media in the gallery\n` +
-        `2️⃣ Click "Buy" on any item\n` +
-        `3️⃣ Pay via PayPal\n` +
-        `4️⃣ Upload screenshot\n` +
-        `5️⃣ Admin approves → content unlocked!`,
-        {
-            parse_mode: 'Markdown',
-            reply_markup: {
-                inline_keyboard: [
-                    [{ text: '🎨 Open Gallery', web_app: { url: process.env.FRONTEND_URL } }],
-                    [{ text: '📋 My Purchases', callback_data: 'my_purchases' }],
-                    [{ text: '⏳ Pending Requests', callback_data: 'my_pending' }]
-                ]
-            }
-        }
-    );
-});
-
+// ==================== MY PURCHASES ====================
 bot.action('my_purchases', async (ctx) => {
     const userId = ctx.from.id;
     const purchases = readDB(PURCHASES_DB_PATH);
@@ -572,7 +592,12 @@ async function startBot() {
     try {
         const me = await bot.telegram.getMe();
         console.log(`🤖 Bot connected: @${me.username}`);
+        console.log(`📌 Bot ID: ${me.id}`);
         console.log(`👑 Admins: ${ADMIN_IDS.length > 0 ? ADMIN_IDS.join(', ') : 'None set!'}`);
+        
+        // Check if media exists
+        const mediaDB = readDB(MEDIA_DB_PATH);
+        console.log(`📸 Total media in DB: ${mediaDB.length}`);
         
         await bot.launch();
         console.log('✅ Bot is running successfully!');
