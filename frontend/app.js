@@ -7,27 +7,87 @@ class CheerfulChickApp {
         this.screenshotFile = null;
         this.purchases = [];
         this.mediaItems = [];
-        // Replace with your actual Render backend URL
-        this.API_URL = 'https://cheerful-cheek.onrender.com/api';
-        // For local development, use: this.API_URL = 'http://localhost:3000';
+        this.messages = [];
+        this.paymentPolling = null;
+        this.isLoading = false;
+        
+        // Use the deployed backend URL
+        this.API_URL = 'https://cheerful-cheek.onrender.com';
+        
         this.init();
     }
 
     async init() {
-        await this.loadUserData();
-        await this.loadMediaItems();
-        this.setupEventListeners();
-        this.hideSplash();
-        
-        // Check for pending payments
-        this.checkPendingPayments();
+        try {
+            await this.loadUserData();
+            await this.loadMediaItems();
+            this.setupEventListeners();
+            this.hideSplash();
+            this.setupTelegramWebApp();
+        } catch (error) {
+            console.error('Init error:', error);
+            this.showError('Failed to initialize app. Please try again.');
+        }
+    }
+
+    setupTelegramWebApp() {
+        if (window.Telegram && window.Telegram.WebApp) {
+            window.Telegram.WebApp.ready();
+            window.Telegram.WebApp.expand();
+        }
     }
 
     hideSplash() {
         setTimeout(() => {
-            document.getElementById('splash-screen').classList.add('hidden');
-            document.getElementById('app').classList.remove('hidden');
+            const splash = document.getElementById('splash-screen');
+            const app = document.getElementById('app');
+            if (splash) splash.classList.add('hidden');
+            if (app) app.classList.remove('hidden');
         }, 1500);
+    }
+
+    showError(message) {
+        const errorDiv = document.createElement('div');
+        errorDiv.style.cssText = `
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #e74c3c;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 12px;
+            z-index: 10000;
+            font-size: 14px;
+            max-width: 90%;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        `;
+        errorDiv.textContent = message;
+        document.body.appendChild(errorDiv);
+        setTimeout(() => errorDiv.remove(), 5000);
+    }
+
+    showSuccess(message) {
+        const successDiv = document.createElement('div');
+        successDiv.style.cssText = `
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #2ecc71;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 12px;
+            z-index: 10000;
+            font-size: 14px;
+            max-width: 90%;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        `;
+        successDiv.textContent = message;
+        document.body.appendChild(successDiv);
+        setTimeout(() => successDiv.remove(), 5000);
     }
 
     async loadUserData() {
@@ -48,21 +108,33 @@ class CheerfulChickApp {
             }
         } catch (error) {
             console.error('Error loading user data:', error);
+            this.showError('Failed to load user data. Please try again.');
         }
     }
 
     getTelegramUser() {
         return new Promise((resolve) => {
             if (window.Telegram && window.Telegram.WebApp) {
-                resolve(window.Telegram.WebApp.initDataUnsafe.user);
+                const user = window.Telegram.WebApp.initDataUnsafe.user;
+                if (user) {
+                    resolve(user);
+                } else {
+                    this.showError('Please open this app from Telegram');
+                    resolve(null);
+                }
             } else {
-                // Demo mode for local development
-                resolve({
-                    id: 123456,
-                    first_name: 'Demo User',
-                    username: 'demouser',
-                    registeredAt: Date.now()
-                });
+                // For testing without Telegram
+                const testUser = prompt('Enter your Telegram ID (for testing):', '123456');
+                if (testUser) {
+                    resolve({
+                        id: parseInt(testUser),
+                        first_name: 'Test User',
+                        username: 'testuser',
+                        registeredAt: Date.now()
+                    });
+                } else {
+                    resolve(null);
+                }
             }
         });
     }
@@ -80,7 +152,9 @@ class CheerfulChickApp {
                     photoUrl: userData.photo_url
                 })
             });
-            return await response.json();
+            if (response.ok) {
+                return await response.json();
+            }
         } catch (error) {
             console.error('Error registering user:', error);
         }
@@ -88,72 +162,53 @@ class CheerfulChickApp {
 
     async loadMediaItems() {
         try {
+            this.showLoading(true);
             const response = await fetch(`${this.API_URL}/api/media`);
+            
             if (response.ok) {
                 this.mediaItems = await response.json();
-                this.renderFeed('all');
-                this.updateStats();
+                console.log('📦 Media items loaded:', this.mediaItems.length);
+                
+                if (this.mediaItems.length === 0) {
+                    this.showEmptyState('No content available yet. Check back soon!');
+                } else {
+                    this.renderFeed('all');
+                    this.updateStats();
+                }
             } else {
-                console.error('Failed to load media, using demo data');
-                this.loadDemoData();
+                console.error('Failed to load media');
+                this.showEmptyState('Failed to load content. Please try again later.');
             }
         } catch (error) {
             console.error('Error loading media:', error);
-            this.loadDemoData();
+            this.showEmptyState('Failed to connect to server. Please try again later.');
+        } finally {
+            this.showLoading(false);
         }
     }
 
-    loadDemoData() {
-        this.mediaItems = [
-            {
-                id: 1,
-                type: 'video',
-                title: 'Premium Video 1',
-                description: 'Exclusive content for premium members',
-                thumbnail: 'https://via.placeholder.com/300x200/1a1a1a/d4af37?text=Video+1',
-                duration: '5:30',
-                price: 9.99,
-                isPurchased: false,
-                url: 'https://example.com/video1.mp4',
-                date: '2024-01-15'
-            },
-            {
-                id: 2,
-                type: 'photo',
-                title: 'Premium Photo 1',
-                description: 'High quality exclusive photo',
-                thumbnail: 'https://via.placeholder.com/300x200/1a1a1a/d4af37?text=Photo+1',
-                price: 4.99,
-                isPurchased: false,
-                url: 'https://example.com/photo1.jpg',
-                date: '2024-01-14'
-            },
-            {
-                id: 3,
-                type: 'video',
-                title: 'Premium Video 2',
-                description: 'Another exclusive video content',
-                thumbnail: 'https://via.placeholder.com/300x200/1a1a1a/d4af37?text=Video+2',
-                duration: '8:15',
-                price: 12.99,
-                isPurchased: false,
-                url: 'https://example.com/video2.mp4',
-                date: '2024-01-13'
-            },
-            {
-                id: 4,
-                type: 'photo',
-                title: 'Premium Photo 2',
-                description: 'Beautiful exclusive photo',
-                thumbnail: 'https://via.placeholder.com/300x200/1a1a1a/d4af37?text=Photo+2',
-                price: 6.99,
-                isPurchased: false,
-                url: 'https://example.com/photo2.jpg',
-                date: '2024-01-12'
-            }
-        ];
-        this.renderFeed('all');
-        this.updateStats();
+    showLoading(show) {
+        this.isLoading = show;
+        const feed = document.getElementById('feed');
+        if (show) {
+            feed.innerHTML = `
+                <div style="text-align:center;padding:60px 20px;color:#888;">
+                    <div class="loader" style="margin:0 auto 20px;width:40px;height:40px;border:3px solid #333;border-top-color:#d4af37;border-radius:50%;animation:spin 1s linear infinite;"></div>
+                    <p>Loading content...</p>
+                </div>
+            `;
+        }
+    }
+
+    showEmptyState(message) {
+        const feed = document.getElementById('feed');
+        feed.innerHTML = `
+            <div style="text-align:center;padding:60px 20px;color:#888;">
+                <i class="fas fa-box-open" style="font-size:48px;margin-bottom:16px;display:block;color:#444;"></i>
+                <p style="font-size:16px;">${message}</p>
+                <p style="font-size:12px;margin-top:8px;color:#666;">Check back later for new content</p>
+            </div>
+        `;
     }
 
     async loadUserPurchases(userId) {
@@ -174,9 +229,13 @@ class CheerfulChickApp {
     loadPurchasesFromStorage() {
         const saved = localStorage.getItem('purchases');
         if (saved) {
-            this.purchases = JSON.parse(saved);
-            this.updatePurchaseStatus();
-            this.updateStats();
+            try {
+                this.purchases = JSON.parse(saved);
+                this.updatePurchaseStatus();
+                this.updateStats();
+            } catch (e) {
+                console.error('Error loading purchases from storage:', e);
+            }
         }
     }
 
@@ -201,6 +260,12 @@ class CheerfulChickApp {
         const feed = document.getElementById('feed');
         let items = this.mediaItems;
 
+        if (!items || items.length === 0) {
+            this.showEmptyState('No content available yet. Check back soon!');
+            return;
+        }
+
+        // Filter by category
         if (category === 'videos') {
             items = items.filter(item => item.type === 'video');
         } else if (category === 'photos') {
@@ -208,14 +273,14 @@ class CheerfulChickApp {
         } else if (category === 'new') {
             items = [...items].sort((a, b) => new Date(b.date) - new Date(a.date));
         } else if (category === 'popular') {
-            items = [...items].sort(() => Math.random() - 0.5);
+            items = [...items].sort((a, b) => (b.purchases || 0) - (a.purchases || 0));
         }
 
         if (items.length === 0) {
             feed.innerHTML = `
                 <div style="text-align:center;padding:40px 20px;color:#888;">
-                    <i class="fas fa-box-open" style="font-size:48px;margin-bottom:16px;display:block;"></i>
-                    <p>No content available in this category</p>
+                    <i class="fas fa-search" style="font-size:32px;margin-bottom:12px;display:block;color:#444;"></i>
+                    <p>No ${category === 'all' ? '' : category} content available</p>
                 </div>
             `;
             return;
@@ -227,22 +292,25 @@ class CheerfulChickApp {
 
     createFeedItem(item) {
         const isPurchased = item.isPurchased;
+        const priceDisplay = item.isFree || item.price === 0 ? 'FREE' : `$${item.price.toFixed(2)}`;
+        
         return `
             <div class="feed-item" data-id="${item.id}">
                 <div class="feed-thumbnail" style="position:relative;">
-                    <img src="${item.thumbnail}" alt="${item.title}" style="width:100%;height:100%;object-fit:cover;">
+                    <img src="${item.thumbnail || 'https://via.placeholder.com/300x200/1a1a1a/666?text=No+Image'}" alt="${item.title}" style="width:100%;height:100%;object-fit:cover;">
                     ${item.duration ? `<span class="video-duration">${item.duration}</span>` : ''}
                     ${isPurchased ? '<span style="position:absolute;top:8px;right:8px;background:#2ecc71;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;">✓ Unlocked</span>' : ''}
+                    ${item.isFree || item.price === 0 ? '<span style="position:absolute;top:8px;left:8px;background:#2ecc71;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;">FREE</span>' : ''}
                 </div>
                 <div class="feed-info">
                     <h4 class="feed-title">${item.title}</h4>
-                    <p class="feed-desc">${item.description}</p>
+                    <p class="feed-desc">${item.description || ''}</p>
                     <div class="feed-meta">
-                        <span>${new Date(item.date).toLocaleDateString()}</span>
-                        <span class="feed-price">$${item.price.toFixed(2)}</span>
+                        <span>${item.date ? new Date(item.date).toLocaleDateString() : ''}</span>
+                        <span class="feed-price">${priceDisplay}</span>
                     </div>
                     <div class="feed-actions">
-                        ${isPurchased ? 
+                        ${isPurchased || item.isFree || item.price === 0 ? 
                             `<button class="btn-watch" data-id="${item.id}"><i class="fas ${item.type === 'video' ? 'fa-play' : 'fa-eye'}"></i> ${item.type === 'video' ? 'Watch' : 'View'}</button>` :
                             `<button class="btn-buy" data-id="${item.id}"><i class="fas fa-shopping-cart"></i> Buy Now</button>`
                         }
@@ -270,7 +338,16 @@ class CheerfulChickApp {
         });
     }
 
-    openPayment(item) {
+    async openPayment(item) {
+        this.currentItem = item;
+        
+        // Check if free
+        if (item.isFree || item.price === 0) {
+            this.showSuccess('🎉 This content is FREE! Unlocking now...');
+            await this.handleFreeContent(item);
+            return;
+        }
+
         this.pendingPayment = item;
         document.getElementById('paymentItem').textContent = item.title;
         document.getElementById('paymentPrice').textContent = `$${item.price.toFixed(2)}`;
@@ -283,14 +360,55 @@ class CheerfulChickApp {
         document.getElementById('paymentLoader').classList.add('hidden');
     }
 
+    async handleFreeContent(item) {
+        try {
+            const response = await fetch(`${this.API_URL}/api/payments/create`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId: this.currentUser.id,
+                    userName: this.currentUser.first_name || 'User',
+                    itemId: item.id,
+                    amount: 0
+                })
+            });
+
+            const data = await response.json();
+            
+            if (data.success && data.isFree) {
+                // Add to purchases
+                this.purchases.push({
+                    itemId: item.id,
+                    amount: 0,
+                    purchaseDate: new Date().toISOString(),
+                    status: 'approved'
+                });
+                localStorage.setItem('purchases', JSON.stringify(this.purchases));
+                
+                // Mark as purchased
+                item.isPurchased = true;
+                this.renderFeed('all');
+                this.updateStats();
+                
+                this.showSuccess('🎉 Content unlocked! You can now view it.');
+                this.viewMedia(item);
+            } else {
+                this.showError('Failed to unlock free content. Please try again.');
+            }
+        } catch (error) {
+            console.error('Error handling free content:', error);
+            this.showError('Failed to unlock free content. Please try again.');
+        }
+    }
+
     async submitPayment() {
         if (!this.screenshotFile) {
-            alert('📸 Please upload a payment screenshot');
+            this.showError('📸 Please upload a payment screenshot');
             return;
         }
 
         if (!this.currentUser) {
-            alert('❌ Please login first');
+            this.showError('❌ Please login first');
             return;
         }
 
@@ -318,10 +436,10 @@ class CheerfulChickApp {
             const data = await response.json();
 
             if (data.success) {
-                alert('✅ Payment submitted successfully! Admin will review and approve your purchase within 24 hours.');
+                this.showSuccess('✅ Payment submitted! Admin will review within 24 hours.');
                 document.getElementById('paymentModal').classList.add('hidden');
                 
-                // Add to local purchases
+                // Add to local purchases as pending
                 this.purchases.push({
                     itemId: this.pendingPayment.id,
                     amount: this.pendingPayment.price,
@@ -336,11 +454,11 @@ class CheerfulChickApp {
                 // Start polling for payment status
                 this.pollPaymentStatus(data.paymentId);
             } else {
-                alert('❌ Error submitting payment: ' + (data.error || 'Unknown error'));
+                this.showError('❌ Error submitting payment: ' + (data.error || 'Unknown error'));
             }
         } catch (error) {
             console.error('Payment submission error:', error);
-            alert('❌ Error submitting payment. Please try again.');
+            this.showError('❌ Error submitting payment. Please try again.');
         } finally {
             confirmBtn.disabled = false;
             loader.classList.add('hidden');
@@ -350,7 +468,7 @@ class CheerfulChickApp {
 
     async pollPaymentStatus(paymentId) {
         let attempts = 0;
-        const maxAttempts = 120; // 10 minutes at 5 second intervals
+        const maxAttempts = 120; // 10 minutes
         
         const interval = setInterval(async () => {
             attempts++;
@@ -367,16 +485,16 @@ class CheerfulChickApp {
                 
                 if (payment.status === 'approved') {
                     clearInterval(interval);
-                    alert('🎉 Payment approved! You now have access to the content.');
+                    this.showSuccess('🎉 Payment approved! You now have access to the content.');
                     await this.loadUserPurchases(this.currentUser.id);
                     this.addMessage('system', '✅ Payment approved! Content unlocked.');
                 } else if (payment.status === 'rejected') {
                     clearInterval(interval);
-                    alert('❌ Payment was rejected. Please contact admin for more information.');
+                    this.showError('❌ Payment was rejected. Please contact admin.');
                     this.addMessage('system', '❌ Payment rejected. Please contact admin.');
                 } else if (attempts >= maxAttempts) {
                     clearInterval(interval);
-                    this.addMessage('system', '⏰ Payment status check timed out. Please check your purchases later.');
+                    this.addMessage('system', '⏰ Payment status check timed out. Please check later.');
                 }
             } catch (error) {
                 console.error('Error checking payment status:', error);
@@ -399,15 +517,15 @@ class CheerfulChickApp {
                 </video>
                 <div style="margin-top:12px;">
                     <h3>${item.title}</h3>
-                    <p style="color:#888;">${item.description}</p>
+                    <p style="color:#888;">${item.description || ''}</p>
                 </div>
             `;
         } else {
             display.innerHTML = `
-                <img src="${item.url}" alt="${item.title}" style="width:100%;border-radius:8px;">
+                <img src="${item.url || item.thumbnail}" alt="${item.title}" style="width:100%;border-radius:8px;">
                 <div style="margin-top:12px;">
                     <h3>${item.title}</h3>
-                    <p style="color:#888;">${item.description}</p>
+                    <p style="color:#888;">${item.description || ''}</p>
                 </div>
             `;
         }
@@ -427,7 +545,7 @@ class CheerfulChickApp {
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
 
-    sendMessage() {
+    async sendMessage() {
         const input = document.getElementById('msgInput');
         const message = input.value.trim();
         if (!message) return;
@@ -436,7 +554,7 @@ class CheerfulChickApp {
         input.value = '';
         
         // Send to backend
-        this.sendToBackend(message);
+        await this.sendToBackend(message);
     }
 
     async sendToBackend(message) {
@@ -456,23 +574,6 @@ class CheerfulChickApp {
         }
     }
 
-    async checkPendingPayments() {
-        if (this.currentUser) {
-            try {
-                const response = await fetch(`${this.API_URL}/api/purchases/${this.currentUser.id}`);
-                if (response.ok) {
-                    const purchases = await response.json();
-                    const pending = purchases.filter(p => p.status === 'pending');
-                    if (pending.length > 0) {
-                        this.addMessage('system', `⏳ You have ${pending.length} pending payment(s) awaiting approval.`);
-                    }
-                }
-            } catch (error) {
-                console.error('Error checking pending payments:', error);
-            }
-        }
-    }
-
     showPurchases() {
         const modal = document.getElementById('purchasesModal');
         const list = document.getElementById('purchasesList');
@@ -486,15 +587,21 @@ class CheerfulChickApp {
                 </div>
             `;
         } else {
-            list.innerHTML = this.purchases.map(p => `
-                <div class="purchase-item">
-                    <div class="purchase-item-info">
-                        <div class="purchase-item-name">${p.item ? p.item.title : 'Item #' + p.itemId}</div>
-                        <div class="purchase-item-date">${new Date(p.purchaseDate).toLocaleDateString()}</div>
+            list.innerHTML = this.purchases.map(p => {
+                const item = this.mediaItems.find(m => m.id === p.itemId);
+                const statusText = p.status === 'pending' ? '⏳ Pending' : '✅ Approved';
+                const priceText = p.amount === 0 ? 'FREE' : `$${p.amount.toFixed(2)}`;
+                return `
+                    <div class="purchase-item">
+                        <div class="purchase-item-info">
+                            <div class="purchase-item-name">${item ? item.title : 'Item #' + p.itemId}</div>
+                            <div class="purchase-item-date">${new Date(p.purchaseDate).toLocaleDateString()}</div>
+                            <div style="font-size:11px;color:${p.status === 'pending' ? '#f39c12' : '#2ecc71'};">${statusText}</div>
+                        </div>
+                        <div class="purchase-item-price">${priceText}</div>
                     </div>
-                    <div class="purchase-item-price">$${p.amount.toFixed(2)}</div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
         }
         
         modal.classList.remove('hidden');
@@ -530,14 +637,14 @@ class CheerfulChickApp {
             if (file) {
                 // Validate file type
                 if (!file.type.startsWith('image/')) {
-                    alert('Please upload an image file');
+                    this.showError('Please upload an image file');
                     e.target.value = '';
                     return;
                 }
                 
                 // Validate file size (max 10MB)
                 if (file.size > 10 * 1024 * 1024) {
-                    alert('File size must be less than 10MB');
+                    this.showError('File size must be less than 10MB');
                     e.target.value = '';
                     return;
                 }
@@ -609,10 +716,10 @@ class CheerfulChickApp {
         // Search
         document.getElementById('searchBtn')?.addEventListener('click', () => {
             const searchTerm = prompt('🔍 Search content:');
-            if (searchTerm) {
+            if (searchTerm && searchTerm.trim()) {
                 const filtered = this.mediaItems.filter(item => 
                     item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    item.description.toLowerCase().includes(searchTerm.toLowerCase())
+                    (item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase()))
                 );
                 const feed = document.getElementById('feed');
                 if (filtered.length === 0) {
@@ -631,15 +738,40 @@ class CheerfulChickApp {
 
         // Notifications
         document.getElementById('notifBtn')?.addEventListener('click', () => {
-            alert('📬 No new notifications');
+            const pending = this.purchases.filter(p => p.status === 'pending');
+            if (pending.length > 0) {
+                this.showInfo(`⏳ You have ${pending.length} pending payment(s) awaiting approval.`);
+            } else {
+                this.showInfo('📬 No new notifications');
+            }
         });
+    }
+
+    showInfo(message) {
+        const infoDiv = document.createElement('div');
+        infoDiv.style.cssText = `
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #3498db;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 12px;
+            z-index: 10000;
+            font-size: 14px;
+            max-width: 90%;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        `;
+        infoDiv.textContent = message;
+        document.body.appendChild(infoDiv);
+        setTimeout(() => infoDiv.remove(), 5000);
     }
 }
 
 // Initialize app when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
     const app = new CheerfulChickApp();
-    
-    // Make app globally accessible for debugging
     window.app = app;
 });
