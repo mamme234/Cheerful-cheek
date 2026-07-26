@@ -33,7 +33,7 @@ function init() {
         console.log('👤 Telegram user data:', user);
         
         if (user) {
-            // REAL TELEGRAM USER - Use this!
+            // REAL TELEGRAM USER
             userId = user.id;
             userData = {
                 id: user.id,
@@ -46,39 +46,80 @@ function init() {
             };
             console.log('✅ Real Telegram user loaded:', userData);
         } else {
-            // Telegram WebApp exists but no user data
-            console.warn('⚠️ No user data from Telegram. Using fallback.');
-            userId = 'user_' + Date.now();
+            // Try to get user from initData
+            console.warn('⚠️ No user data from Telegram. Checking initData...');
+            const initData = tg.initData;
+            console.log('📦 initData:', initData);
+            
+            // Check if we have a user ID from URL params
+            const urlParams = new URLSearchParams(window.location.search);
+            const userIdParam = urlParams.get('userId');
+            
+            if (userIdParam) {
+                userId = userIdParam;
+                userData = {
+                    id: userId,
+                    name: urlParams.get('name') || 'User',
+                    lastName: '',
+                    username: urlParams.get('username') || 'user',
+                    photoUrl: null,
+                    languageCode: 'en',
+                    isPremium: false
+                };
+                console.log('✅ User from URL params:', userData);
+            } else {
+                // Use fallback but log warning
+                console.warn('⚠️ Using fallback user - check bot setup');
+                userId = 'user_' + Date.now();
+                userData = {
+                    id: userId,
+                    name: 'User',
+                    lastName: '',
+                    username: 'user',
+                    photoUrl: null,
+                    languageCode: 'en',
+                    isPremium: false
+                };
+            }
+        }
+    } else {
+        // NOT in Telegram - check URL params
+        console.warn('⚠️ Not running in Telegram WebApp');
+        const urlParams = new URLSearchParams(window.location.search);
+        const userIdParam = urlParams.get('userId');
+        
+        if (userIdParam) {
+            userId = userIdParam;
             userData = {
                 id: userId,
-                name: 'User',
+                name: urlParams.get('name') || 'User',
                 lastName: '',
-                username: 'user',
+                username: urlParams.get('username') || 'user',
                 photoUrl: null,
                 languageCode: 'en',
                 isPremium: false
             };
+            console.log('✅ User from URL params:', userData);
+        } else {
+            userId = 'test_user_' + Date.now();
+            userData = {
+                id: userId,
+                name: 'Test User',
+                lastName: '',
+                username: 'testuser',
+                photoUrl: null,
+                languageCode: 'en',
+                isPremium: false
+            };
+            console.log('⚠️ Using test user:', userData);
         }
-    } else {
-        // NOT in Telegram - fallback
-        console.warn('⚠️ Not running in Telegram WebApp');
-        userId = 'test_user_' + Date.now();
-        userData = {
-            id: userId,
-            name: 'Test User',
-            lastName: '',
-            username: 'testuser',
-            photoUrl: null,
-            languageCode: 'en',
-            isPremium: false
-        };
     }
     
     updateProfileUI();
     
     console.log('✅ Mini App initialized');
     console.log('📡 Backend:', BACKEND_URL);
-    console.log('👤 User:', userData);
+    console.log('👤 Final User:', userData);
     
     setupEventListeners();
     loadApp();
@@ -100,7 +141,6 @@ function updateProfileUI() {
     const nameEl = document.getElementById('profileName');
     const usernameEl = document.getElementById('profileUsername');
     const userBtn = document.getElementById('userAvatar');
-    const userNameDisplay = document.getElementById('userNameDisplay');
     
     // Set name
     nameEl.textContent = fullName;
@@ -138,11 +178,6 @@ function updateProfileUI() {
     document.getElementById('profilePaypalEmail').textContent = ADMIN_PAYPAL_EMAIL;
     document.getElementById('modalPaypalEmail').textContent = ADMIN_PAYPAL_EMAIL;
     document.getElementById('screenshotPaypalEmail').textContent = ADMIN_PAYPAL_EMAIL;
-    
-    // If there's a display name element
-    if (userNameDisplay) {
-        userNameDisplay.textContent = fullName;
-    }
 }
 
 // ==================== EVENT LISTENERS ====================
