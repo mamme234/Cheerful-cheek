@@ -10,6 +10,7 @@ class CheerfulChickApp {
         this.messages = [];
         this.paymentPolling = null;
         this.isLoading = false;
+        this.isTelegramReady = false;
         
         // Use the deployed backend URL
         this.API_URL = 'https://cheerful-cheek.onrender.com';
@@ -19,31 +20,120 @@ class CheerfulChickApp {
 
     async init() {
         try {
+            // Initialize Telegram WebApp first
+            await this.initTelegramWebApp();
+            
+            // Hide splash after everything is ready
+            setTimeout(() => {
+                this.hideSplash();
+            }, 1500);
+            
             await this.loadUserData();
             await this.loadMediaItems();
             this.setupEventListeners();
-            this.hideSplash();
-            this.setupTelegramWebApp();
+            
         } catch (error) {
             console.error('Init error:', error);
             this.showError('Failed to initialize app. Please try again.');
+            this.hideSplash();
         }
     }
 
-    setupTelegramWebApp() {
-        if (window.Telegram && window.Telegram.WebApp) {
-            window.Telegram.WebApp.ready();
-            window.Telegram.WebApp.expand();
-        }
+    initTelegramWebApp() {
+        return new Promise((resolve) => {
+            try {
+                // Check if running in Telegram
+                if (window.Telegram && window.Telegram.WebApp) {
+                    console.log('📱 Telegram WebApp detected');
+                    
+                    // Initialize Telegram WebApp
+                    const tg = window.Telegram.WebApp;
+                    tg.ready();
+                    tg.expand();
+                    
+                    // Set theme colors
+                    if (tg.themeParams) {
+                        document.documentElement.style.setProperty('--tg-bg-color', tg.themeParams.bg_color || '#0a0a0a');
+                        document.documentElement.style.setProperty('--tg-text-color', tg.themeParams.text_color || '#ffffff');
+                        document.documentElement.style.setProperty('--tg-hint-color', tg.themeParams.hint_color || '#888888');
+                        document.documentElement.style.setProperty('--tg-link-color', tg.themeParams.link_color || '#d4af37');
+                        document.documentElement.style.setProperty('--tg-button-color', tg.themeParams.button_color || '#d4af37');
+                        document.documentElement.style.setProperty('--tg-button-text-color', tg.themeParams.button_text_color || '#000000');
+                    }
+                    
+                    this.isTelegramReady = true;
+                    
+                    // Get user data
+                    if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+                        this.currentUser = tg.initDataUnsafe.user;
+                        console.log('👤 User loaded from Telegram:', this.currentUser.first_name);
+                    } else {
+                        console.log('⚠️ No user data from Telegram');
+                    }
+                    
+                    resolve();
+                } else {
+                    console.log('ℹ️ Not running in Telegram WebApp');
+                    // For testing outside Telegram
+                    this.showTelegramLogin();
+                    resolve();
+                }
+            } catch (error) {
+                console.error('Error initializing Telegram WebApp:', error);
+                resolve();
+            }
+        });
+    }
+
+    showTelegramLogin() {
+        // Show login overlay for non-Telegram environments
+        const overlay = document.createElement('div');
+        overlay.id = 'telegram-login-overlay';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.95);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 99999;
+            flex-direction: column;
+            padding: 20px;
+        `;
+        
+        overlay.innerHTML = `
+            <div style="text-align:center;max-width:400px;">
+                <img src="background.png" alt="Logo" style="width:80px;height:80px;border-radius:20px;margin-bottom:20px;border:3px solid #d4af37;">
+                <h2 style="color:#d4af37;margin-bottom:10px;">Cheerful Chick</h2>
+                <p style="color:#888;margin-bottom:30px;">Please open this app from Telegram</p>
+                <button onclick="window.location.reload()" style="background:#d4af37;color:#000;border:none;padding:12px 30px;border-radius:10px;font-size:16px;font-weight:600;cursor:pointer;">
+                    🔄 Try Again
+                </button>
+                <p style="color:#666;font-size:12px;margin-top:20px;">This app requires Telegram to work</p>
+            </div>
+        `;
+        
+        document.body.appendChild(overlay);
     }
 
     hideSplash() {
-        setTimeout(() => {
-            const splash = document.getElementById('splash-screen');
-            const app = document.getElementById('app');
-            if (splash) splash.classList.add('hidden');
-            if (app) app.classList.remove('hidden');
-        }, 1500);
+        const splash = document.getElementById('splash-screen');
+        const app = document.getElementById('app');
+        if (splash) {
+            splash.style.opacity = '0';
+            splash.style.transition = 'opacity 0.5s ease';
+            setTimeout(() => {
+                splash.classList.add('hidden');
+                splash.style.display = 'none';
+            }, 500);
+        }
+        if (app) {
+            app.classList.remove('hidden');
+            app.style.display = 'flex';
+        }
     }
 
     showError(message) {
@@ -94,103 +184,46 @@ class CheerfulChickApp {
 
     async loadUserData() {
         try {
-            const userData = await this.getTelegramUser();
-            if (userData) {
-                this.currentUser = userData;
-                
-                // Update profile with Telegram data
-                document.getElementById('displayName').textContent = userData.first_name || 'User';
-                document.getElementById('username').textContent = `@${userData.username || 'username'}`;
-                
-                // Set profile photo if available
-                if (userData.photo_url) {
-                    document.getElementById('profileAvatar').src = userData.photo_url;
-                }
-                
-                // Register user with backend
-                await this.registerUser(userData);
-                await this.loadUserPurchases(userData.id);
-                
-                // Update join date
-                const joinDate = new Date(userData.registeredAt || Date.now());
-                document.getElementById('joinDate').textContent = joinDate.toLocaleDateString();
+            // If we already have user from Telegram
+            if (this.currentUser) {
+                this.updateProfileUI(this.currentUser);
+                await this.registerUser(this.currentUser);
+                await this.loadUserPurchases(this.currentUser.id);
+                return;
             }
+
+            // Try to get user from Telegram
+            if (window.Telegram && window.Telegram.WebApp) {
+                const tg = window.Telegram.WebApp;
+                if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+                    this.currentUser = tg.initDataUnsafe.user;
+                    this.updateProfileUI(this.currentUser);
+                    await this.registerUser(this.currentUser);
+                    await this.loadUserPurchases(this.currentUser.id);
+                    return;
+                }
+            }
+
+            // If still no user, show error
+            console.error('No user data available');
+            this.showError('Please open this app from Telegram');
+            
         } catch (error) {
             console.error('Error loading user data:', error);
             this.showError('Failed to load user data. Please try again.');
         }
     }
 
-    getTelegramUser() {
-        return new Promise((resolve) => {
-            // Check if running in Telegram WebApp
-            if (window.Telegram && window.Telegram.WebApp) {
-                const user = window.Telegram.WebApp.initDataUnsafe.user;
-                if (user) {
-                    console.log('👤 Telegram user loaded:', user.first_name);
-                    resolve(user);
-                } else {
-                    this.showError('Please open this app from Telegram');
-                    resolve(null);
-                }
-            } else {
-                // Fallback for development - use Telegram login widget
-                this.showTelegramLogin();
-                resolve(null);
-            }
-        });
-    }
-
-    showTelegramLogin() {
-        // Create login overlay
-        const overlay = document.createElement('div');
-        overlay.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.9);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 99999;
-            flex-direction: column;
-            padding: 20px;
-        `;
+    updateProfileUI(user) {
+        document.getElementById('displayName').textContent = user.first_name || 'User';
+        document.getElementById('username').textContent = `@${user.username || 'username'}`;
         
-        overlay.innerHTML = `
-            <div style="text-align:center;max-width:400px;">
-                <img src="background.png" alt="Logo" style="width:80px;height:80px;border-radius:20px;margin-bottom:20px;border:3px solid #d4af37;">
-                <h2 style="color:#d4af37;margin-bottom:10px;">Cheerful Chick</h2>
-                <p style="color:#888;margin-bottom:30px;">Please login with Telegram to continue</p>
-                <div id="telegram-login-btn" style="display:inline-block;"></div>
-                <p style="color:#666;font-size:12px;margin-top:20px;">This app requires Telegram authentication</p>
-            </div>
-        `;
+        if (user.photo_url) {
+            document.getElementById('profileAvatar').src = user.photo_url;
+        }
         
-        document.body.appendChild(overlay);
-        
-        // Load Telegram login widget
-        const script = document.createElement('script');
-        script.src = 'https://telegram.org/js/telegram-widget.js?22';
-        script.setAttribute('data-telegram-login', 'cheerfulchick_bot');
-        script.setAttribute('data-size', 'large');
-        script.setAttribute('data-onauth', 'onTelegramAuth(user)');
-        script.setAttribute('data-request-access', 'write');
-        document.getElementById('telegram-login-btn').appendChild(script);
-        
-        // Make the callback function global
-        window.onTelegramAuth = (user) => {
-            overlay.remove();
-            this.currentUser = user;
-            document.getElementById('displayName').textContent = user.first_name || 'User';
-            document.getElementById('username').textContent = `@${user.username || 'username'}`;
-            this.registerUser(user);
-            this.loadUserPurchases(user.id);
-            this.hideSplash();
-            this.loadMediaItems();
-        };
+        const joinDate = new Date(user.registeredAt || Date.now());
+        document.getElementById('joinDate').textContent = joinDate.toLocaleDateString();
     }
 
     async registerUser(userData) {
@@ -550,7 +583,6 @@ class CheerfulChickApp {
         const viewer = document.getElementById('mediaViewer');
         const display = document.getElementById('mediaDisplay');
         
-        // Check if content is purchased or free
         if (!item.isPurchased && !item.isFree && item.price > 0) {
             this.showError('❌ Please purchase this content first');
             return;
