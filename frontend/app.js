@@ -10,7 +10,8 @@ class CheerfulChickApp {
         this.messages = [];
         this.paymentPolling = null;
         this.isLoading = false;
-        this.isTelegramReady = false;
+        this.isGuest = true;
+        this.showLoginModal = false;
         
         // Use the deployed backend URL
         this.API_URL = 'https://cheerful-cheek.onrender.com';
@@ -20,7 +21,7 @@ class CheerfulChickApp {
 
     async init() {
         try {
-            // Initialize Telegram WebApp first
+            // Initialize Telegram WebApp
             await this.initTelegramWebApp();
             
             // Hide splash after everything is ready
@@ -28,9 +29,9 @@ class CheerfulChickApp {
                 this.hideSplash();
             }, 1500);
             
-            await this.loadUserData();
             await this.loadMediaItems();
             this.setupEventListeners();
+            this.setupGuestMode();
             
         } catch (error) {
             console.error('Init error:', error);
@@ -42,16 +43,12 @@ class CheerfulChickApp {
     initTelegramWebApp() {
         return new Promise((resolve) => {
             try {
-                // Check if running in Telegram
                 if (window.Telegram && window.Telegram.WebApp) {
                     console.log('📱 Telegram WebApp detected');
-                    
-                    // Initialize Telegram WebApp
                     const tg = window.Telegram.WebApp;
                     tg.ready();
                     tg.expand();
                     
-                    // Set theme colors
                     if (tg.themeParams) {
                         document.documentElement.style.setProperty('--tg-bg-color', tg.themeParams.bg_color || '#0a0a0a');
                         document.documentElement.style.setProperty('--tg-text-color', tg.themeParams.text_color || '#ffffff');
@@ -61,41 +58,71 @@ class CheerfulChickApp {
                         document.documentElement.style.setProperty('--tg-button-text-color', tg.themeParams.button_text_color || '#000000');
                     }
                     
-                    this.isTelegramReady = true;
-                    
-                    // Get user data
                     if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
                         this.currentUser = tg.initDataUnsafe.user;
+                        this.isGuest = false;
                         console.log('👤 User loaded from Telegram:', this.currentUser.first_name);
+                        this.registerUser(this.currentUser);
+                        this.loadUserPurchases(this.currentUser.id);
+                        this.updateProfileUI();
                     } else {
-                        console.log('⚠️ No user data from Telegram');
+                        console.log('ℹ️ Guest mode - No Telegram user data');
+                        this.isGuest = true;
                     }
-                    
                     resolve();
                 } else {
-                    console.log('ℹ️ Not running in Telegram WebApp');
-                    // For testing outside Telegram
-                    this.showTelegramLogin();
+                    console.log('ℹ️ Not running in Telegram WebApp - Guest mode');
+                    this.isGuest = true;
                     resolve();
                 }
             } catch (error) {
                 console.error('Error initializing Telegram WebApp:', error);
+                this.isGuest = true;
                 resolve();
             }
         });
     }
 
-    showTelegramLogin() {
-        // Show login overlay for non-Telegram environments
+    setupGuestMode() {
+        // Show guest indicator
+        const guestBadge = document.createElement('div');
+        guestBadge.id = 'guest-badge';
+        guestBadge.style.cssText = `
+            position: fixed;
+            bottom: 80px;
+            right: 20px;
+            background: rgba(212, 175, 55, 0.2);
+            border: 1px solid #d4af37;
+            color: #d4af37;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 10px;
+            z-index: 100;
+            cursor: pointer;
+            transition: all 0.3s;
+        `;
+        guestBadge.textContent = this.isGuest ? '👤 Guest Mode' : '✅ Logged In';
+        guestBadge.title = this.isGuest ? 'Click to login' : 'Logged in with Telegram';
+        
+        if (this.isGuest) {
+            guestBadge.onclick = () => this.showLoginOptions();
+        }
+        
+        document.body.appendChild(guestBadge);
+
+        // Update profile UI based on login status
+        this.updateProfileUI();
+    }
+
+    showLoginOptions() {
         const overlay = document.createElement('div');
-        overlay.id = 'telegram-login-overlay';
         overlay.style.cssText = `
             position: fixed;
             top: 0;
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0,0,0,0.95);
+            background: rgba(0,0,0,0.9);
             display: flex;
             justify-content: center;
             align-items: center;
@@ -105,34 +132,134 @@ class CheerfulChickApp {
         `;
         
         overlay.innerHTML = `
-            <div style="text-align:center;max-width:400px;">
+            <div style="text-align:center;max-width:400px;width:100%;">
                 <img src="background.png" alt="Logo" style="width:80px;height:80px;border-radius:20px;margin-bottom:20px;border:3px solid #d4af37;">
-                <h2 style="color:#d4af37;margin-bottom:10px;">Cheerful Chick</h2>
-                <p style="color:#888;margin-bottom:30px;">Please open this app from Telegram</p>
-                <button onclick="window.location.reload()" style="background:#d4af37;color:#000;border:none;padding:12px 30px;border-radius:10px;font-size:16px;font-weight:600;cursor:pointer;">
-                    🔄 Try Again
-                </button>
-                <p style="color:#666;font-size:12px;margin-top:20px;">This app requires Telegram to work</p>
+                <h2 style="color:#d4af37;margin-bottom:10px;">Login to Cheerful Chick</h2>
+                <p style="color:#888;margin-bottom:30px;font-size:14px;">Login to make purchases and access premium content</p>
+                
+                <div style="display:flex;flex-direction:column;gap:12px;">
+                    <button onclick="window.app.loginWithTelegram()" style="background:#d4af37;color:#000;border:none;padding:14px 20px;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;width:100%;">
+                        <i class="fab fa-telegram-plane"></i>
+                        Login with Telegram
+                    </button>
+                    
+                    <button onclick="window.app.loginWithEmail()" style="background:rgba(255,255,255,0.05);color:#fff;border:1px solid rgba(255,255,255,0.1);padding:14px 20px;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;width:100%;">
+                        <i class="fas fa-envelope"></i>
+                        Login with Email
+                    </button>
+                    
+                    <button onclick="window.app.closeLogin()" style="background:none;color:#666;border:none;padding:10px;font-size:14px;cursor:pointer;margin-top:10px;">
+                        Continue as Guest
+                    </button>
+                </div>
             </div>
         `;
         
         document.body.appendChild(overlay);
+        this.loginOverlay = overlay;
     }
 
-    hideSplash() {
-        const splash = document.getElementById('splash-screen');
-        const app = document.getElementById('app');
-        if (splash) {
-            splash.style.opacity = '0';
-            splash.style.transition = 'opacity 0.5s ease';
-            setTimeout(() => {
-                splash.classList.add('hidden');
-                splash.style.display = 'none';
-            }, 500);
+    loginWithTelegram() {
+        // Try to get Telegram user
+        if (window.Telegram && window.Telegram.WebApp) {
+            const tg = window.Telegram.WebApp;
+            if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+                this.currentUser = tg.initDataUnsafe.user;
+                this.isGuest = false;
+                this.registerUser(this.currentUser);
+                this.loadUserPurchases(this.currentUser.id);
+                this.updateProfileUI();
+                this.closeLogin();
+                this.showSuccess('✅ Logged in with Telegram!');
+                this.updateGuestBadge();
+                return;
+            }
         }
-        if (app) {
-            app.classList.remove('hidden');
-            app.style.display = 'flex';
+        this.showError('❌ Could not get Telegram user. Please make sure you\'re using the Telegram app.');
+    }
+
+    loginWithEmail() {
+        // Show email login form
+        const overlay = document.getElementById('telegram-login-overlay') || this.loginOverlay;
+        if (overlay) {
+            overlay.innerHTML = `
+                <div style="text-align:center;max-width:400px;width:100%;">
+                    <img src="background.png" alt="Logo" style="width:80px;height:80px;border-radius:20px;margin-bottom:20px;border:3px solid #d4af37;">
+                    <h2 style="color:#d4af37;margin-bottom:10px;">Email Login</h2>
+                    <p style="color:#888;margin-bottom:20px;font-size:14px;">Enter your email to continue</p>
+                    
+                    <form onsubmit="window.app.submitEmailLogin(event)" style="display:flex;flex-direction:column;gap:12px;">
+                        <input type="email" id="email-input" placeholder="Enter your email" required style="padding:14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:12px;color:#fff;font-size:16px;width:100%;">
+                        <button type="submit" style="background:#d4af37;color:#000;border:none;padding:14px;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;width:100%;">
+                            Continue
+                        </button>
+                    </form>
+                    
+                    <button onclick="window.app.closeLogin()" style="background:none;color:#666;border:none;padding:10px;font-size:14px;cursor:pointer;margin-top:10px;">
+                        Back
+                    </button>
+                </div>
+            `;
+        }
+    }
+
+    submitEmailLogin(event) {
+        event.preventDefault();
+        const email = document.getElementById('email-input').value;
+        if (email) {
+            // Create a guest user with email
+            this.currentUser = {
+                id: 'guest_' + Date.now(),
+                first_name: email.split('@')[0] || 'Guest',
+                username: email,
+                email: email,
+                isGuest: false
+            };
+            this.isGuest = false;
+            this.registerUser(this.currentUser);
+            this.loadUserPurchases(this.currentUser.id);
+            this.updateProfileUI();
+            this.closeLogin();
+            this.showSuccess('✅ Logged in with email!');
+            this.updateGuestBadge();
+        }
+    }
+
+    closeLogin() {
+        if (this.loginOverlay) {
+            this.loginOverlay.remove();
+            this.loginOverlay = null;
+        }
+    }
+
+    updateGuestBadge() {
+        const badge = document.getElementById('guest-badge');
+        if (badge) {
+            badge.textContent = this.isGuest ? '👤 Guest Mode' : '✅ Logged In';
+            badge.title = this.isGuest ? 'Click to login' : 'Logged in';
+            badge.onclick = this.isGuest ? () => this.showLoginOptions() : null;
+            badge.style.cursor = this.isGuest ? 'pointer' : 'default';
+        }
+    }
+
+    updateProfileUI() {
+        const displayName = document.getElementById('displayName');
+        const username = document.getElementById('username');
+        const avatar = document.getElementById('profileAvatar');
+        const joinDate = document.getElementById('joinDate');
+        
+        if (this.currentUser && !this.isGuest) {
+            displayName.textContent = this.currentUser.first_name || this.currentUser.email || 'User';
+            username.textContent = this.currentUser.username ? `@${this.currentUser.username}` : this.currentUser.email || 'guest';
+            if (this.currentUser.photo_url) {
+                avatar.src = this.currentUser.photo_url;
+            }
+            joinDate.textContent = new Date().toLocaleDateString();
+        } else {
+            displayName.textContent = 'Guest User';
+            username.textContent = '👤 Guest Mode';
+            avatar.src = 'background.png';
+            joinDate.textContent = 'Not logged in';
         }
     }
 
@@ -182,48 +309,21 @@ class CheerfulChickApp {
         setTimeout(() => successDiv.remove(), 5000);
     }
 
-    async loadUserData() {
-        try {
-            // If we already have user from Telegram
-            if (this.currentUser) {
-                this.updateProfileUI(this.currentUser);
-                await this.registerUser(this.currentUser);
-                await this.loadUserPurchases(this.currentUser.id);
-                return;
-            }
-
-            // Try to get user from Telegram
-            if (window.Telegram && window.Telegram.WebApp) {
-                const tg = window.Telegram.WebApp;
-                if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
-                    this.currentUser = tg.initDataUnsafe.user;
-                    this.updateProfileUI(this.currentUser);
-                    await this.registerUser(this.currentUser);
-                    await this.loadUserPurchases(this.currentUser.id);
-                    return;
-                }
-            }
-
-            // If still no user, show error
-            console.error('No user data available');
-            this.showError('Please open this app from Telegram');
-            
-        } catch (error) {
-            console.error('Error loading user data:', error);
-            this.showError('Failed to load user data. Please try again.');
+    hideSplash() {
+        const splash = document.getElementById('splash-screen');
+        const app = document.getElementById('app');
+        if (splash) {
+            splash.style.opacity = '0';
+            splash.style.transition = 'opacity 0.5s ease';
+            setTimeout(() => {
+                splash.classList.add('hidden');
+                splash.style.display = 'none';
+            }, 500);
         }
-    }
-
-    updateProfileUI(user) {
-        document.getElementById('displayName').textContent = user.first_name || 'User';
-        document.getElementById('username').textContent = `@${user.username || 'username'}`;
-        
-        if (user.photo_url) {
-            document.getElementById('profileAvatar').src = user.photo_url;
+        if (app) {
+            app.classList.remove('hidden');
+            app.style.display = 'flex';
         }
-        
-        const joinDate = new Date(user.registeredAt || Date.now());
-        document.getElementById('joinDate').textContent = joinDate.toLocaleDateString();
     }
 
     async registerUser(userData) {
@@ -232,11 +332,11 @@ class CheerfulChickApp {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    id: userData.id,
-                    firstName: userData.first_name,
-                    lastName: userData.last_name,
-                    username: userData.username,
-                    photoUrl: userData.photo_url
+                    id: userData.id || userData.email || 'guest_' + Date.now(),
+                    firstName: userData.first_name || userData.email || 'Guest',
+                    lastName: userData.last_name || '',
+                    username: userData.username || userData.email || 'guest',
+                    photoUrl: userData.photo_url || ''
                 })
             });
             if (response.ok) {
@@ -378,6 +478,7 @@ class CheerfulChickApp {
     createFeedItem(item) {
         const isPurchased = item.isPurchased;
         const priceDisplay = item.isFree || item.price === 0 ? 'FREE' : `$${item.price.toFixed(2)}`;
+        const isLocked = !isPurchased && !item.isFree && item.price > 0;
         
         return `
             <div class="feed-item" data-id="${item.id}">
@@ -385,6 +486,7 @@ class CheerfulChickApp {
                     <img src="${item.thumbnail || 'https://via.placeholder.com/300x200/1a1a1a/666?text=No+Image'}" alt="${item.title}" style="width:100%;height:100%;object-fit:cover;" onerror="this.src='https://via.placeholder.com/300x200/1a1a1a/666?text=Image+Not+Found'">
                     ${item.duration ? `<span class="video-duration">${item.duration}</span>` : ''}
                     ${isPurchased ? '<span style="position:absolute;top:8px;right:8px;background:#2ecc71;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;">✓ Unlocked</span>' : ''}
+                    ${isLocked ? '<span style="position:absolute;top:8px;right:8px;background:#e74c3c;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;">🔒 Locked</span>' : ''}
                     ${item.isFree || item.price === 0 ? '<span style="position:absolute;top:8px;left:8px;background:#2ecc71;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;">FREE</span>' : ''}
                 </div>
                 <div class="feed-info">
@@ -410,7 +512,13 @@ class CheerfulChickApp {
             btn.addEventListener('click', (e) => {
                 const id = parseInt(e.currentTarget.dataset.id);
                 const item = this.mediaItems.find(i => i.id === id);
-                if (item) this.openPayment(item);
+                if (item) {
+                    if (this.isGuest) {
+                        this.showLoginOptions();
+                    } else {
+                        this.openPayment(item);
+                    }
+                }
             });
         });
 
@@ -445,6 +553,11 @@ class CheerfulChickApp {
     }
 
     async handleFreeContent(item) {
+        if (this.isGuest) {
+            this.showLoginOptions();
+            return;
+        }
+        
         try {
             const response = await fetch(`${this.API_URL}/api/payments/create`, {
                 method: 'POST',
@@ -484,13 +597,13 @@ class CheerfulChickApp {
     }
 
     async submitPayment() {
-        if (!this.screenshotFile) {
-            this.showError('📸 Please upload a payment screenshot');
+        if (this.isGuest) {
+            this.showLoginOptions();
             return;
         }
-
-        if (!this.currentUser) {
-            this.showError('❌ Please login first');
+        
+        if (!this.screenshotFile) {
+            this.showError('📸 Please upload a payment screenshot');
             return;
         }
 
@@ -625,6 +738,11 @@ class CheerfulChickApp {
     }
 
     async sendMessage() {
+        if (this.isGuest) {
+            this.showLoginOptions();
+            return;
+        }
+        
         const input = document.getElementById('msgInput');
         const message = input.value.trim();
         if (!message) return;
@@ -652,6 +770,11 @@ class CheerfulChickApp {
     }
 
     showPurchases() {
+        if (this.isGuest) {
+            this.showLoginOptions();
+            return;
+        }
+        
         const modal = document.getElementById('purchasesModal');
         const list = document.getElementById('purchasesList');
         
@@ -748,6 +871,10 @@ class CheerfulChickApp {
 
         // Chat
         document.querySelector('.chat-item')?.addEventListener('click', () => {
+            if (this.isGuest) {
+                this.showLoginOptions();
+                return;
+            }
             document.getElementById('chatList').classList.add('hidden');
             document.getElementById('chatScreen').classList.remove('hidden');
         });
@@ -770,10 +897,29 @@ class CheerfulChickApp {
             this.showPurchases();
         });
 
+        // Click on profile avatar to login
+        document.getElementById('profileAvatar')?.addEventListener('click', () => {
+            if (this.isGuest) {
+                this.showLoginOptions();
+            }
+        });
+
+        // Click on profile name to login
+        document.getElementById('displayName')?.addEventListener('click', () => {
+            if (this.isGuest) {
+                this.showLoginOptions();
+            }
+        });
+
         document.getElementById('logoutBtn')?.addEventListener('click', () => {
             if (confirm('Are you sure you want to logout?')) {
                 localStorage.clear();
-                window.location.reload();
+                this.currentUser = null;
+                this.isGuest = true;
+                this.purchases = [];
+                this.updateProfileUI();
+                this.updateGuestBadge();
+                this.showSuccess('👋 Logged out successfully');
             }
         });
 
