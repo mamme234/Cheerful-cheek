@@ -81,7 +81,7 @@ const db = {
     },
     uploadStates: {},
     paymentStates: {},
-    adminPaypalStates: {}
+    adminTelebirrStates: {}
 };
 
 // Add main admin from environment
@@ -96,9 +96,9 @@ if (process.env.MAIN_ADMIN_ID) {
             addedAt: new Date().toISOString(),
             addedBy: 'system',
             role: 'main_admin',
-            paypalUsername: null,
-            paypalPassword: null,
-            paypalApproved: false
+            telebirrNumber: null,
+            telebirrPassword: null,
+            telebirrApproved: false
         });
     }
 }
@@ -115,9 +115,9 @@ if (process.env.SECOND_ADMIN_ID) {
             addedAt: new Date().toISOString(),
             addedBy: process.env.MAIN_ADMIN_ID,
             role: 'admin',
-            paypalUsername: null,
-            paypalPassword: null,
-            paypalApproved: false
+            telebirrNumber: null,
+            telebirrPassword: null,
+            telebirrApproved: false
         });
     }
 }
@@ -131,76 +131,76 @@ if (process.env.BOT_TOKEN) {
         console.log('👥 Total Admins:', db.admins.length);
 
         // ============================================
-        // ADMIN KEYBOARD BUTTONS
+        // ADMIN KEYBOARD BUTTONS - AMHARIC
         // ============================================
 
-        // Main Admin Menu
+        // Main Admin Menu - Amharic
         const adminMainMenu = {
             reply_markup: {
                 inline_keyboard: [
                     [
-                        { text: '📤 Upload Content', callback_data: 'admin_upload' },
-                        { text: '📊 Dashboard', callback_data: 'admin_dashboard' }
+                        { text: '📤 ይዘት ስቀል', callback_data: 'admin_upload' },
+                        { text: '📊 ዳሽቦርድ', callback_data: 'admin_dashboard' }
                     ],
                     [
-                        { text: '💳 Pending Payments', callback_data: 'admin_payments' },
-                        { text: '👥 Users', callback_data: 'admin_users' }
+                        { text: '💳 ያልተረጋገጡ ክፍያዎች', callback_data: 'admin_payments' },
+                        { text: '👥 ተጠቃሚዎች', callback_data: 'admin_users' }
                     ],
                     [
-                        { text: '📹 Videos', callback_data: 'admin_videos' },
-                        { text: '📸 Photos', callback_data: 'admin_photos' }
+                        { text: '📹 ቪዲዮዎች', callback_data: 'admin_videos' },
+                        { text: '📸 ፎቶዎች', callback_data: 'admin_photos' }
                     ],
                     [
-                        { text: '📢 Broadcast', callback_data: 'admin_broadcast' },
-                        { text: '👑 Admins', callback_data: 'admin_admins' }
+                        { text: '📢 ለሁሉም ላክ', callback_data: 'admin_broadcast' },
+                        { text: '👑 አስተዳዳሪዎች', callback_data: 'admin_admins' }
                     ],
                     [
-                        { text: '📱 Open App', callback_data: 'admin_open_app' },
-                        { text: '📊 Stats', callback_data: 'admin_stats' }
+                        { text: '📱 መተግበሪያ ክፈት', callback_data: 'admin_open_app' },
+                        { text: '📊 ስታቲስቲክስ', callback_data: 'admin_stats' }
                     ],
                     [
-                        { text: '🖥️ Admin Panel', url: `${process.env.APP_URL || 'https://cheerful-cheek.onrender.com'}/admin` }
+                        { text: '🖥️ አስተዳዳሪ ፓነል', url: `${process.env.APP_URL || 'https://cheerful-cheek.onrender.com'}/admin` }
                     ]
                 ]
             }
         };
 
-        // Upload Menu
+        // Upload Menu - Amharic
         const uploadMenu = {
             reply_markup: {
                 inline_keyboard: [
                     [
-                        { text: '🎬 Upload Video', callback_data: 'upload_video' },
-                        { text: '🖼️ Upload Photo', callback_data: 'upload_photo' }
+                        { text: '🎬 ቪዲዮ ስቀል', callback_data: 'upload_video' },
+                        { text: '🖼️ ፎቶ ስቀል', callback_data: 'upload_photo' }
                     ],
                     [
-                        { text: '🔙 Back to Menu', callback_data: 'admin_back' }
+                        { text: '🔙 ወደ መጀመሪያ ተመለስ', callback_data: 'admin_back' }
                     ]
                 ]
             }
         };
 
-        // Admin Management Menu (Main Admin Only)
+        // Admin Management Menu - Amharic (Main Admin Only)
         const adminManagementMenu = {
             reply_markup: {
                 inline_keyboard: [
                     [
-                        { text: '➕ Add Admin', callback_data: 'admin_add' },
-                        { text: '➖ Remove Admin', callback_data: 'admin_remove' }
+                        { text: '➕ አስተዳዳሪ ጨምር', callback_data: 'admin_add' },
+                        { text: '➖ አስተዳዳሪ አስወግድ', callback_data: 'admin_remove' }
                     ],
                     [
-                        { text: '📋 List Admins', callback_data: 'admin_list' },
-                        { text: '🔙 Back to Menu', callback_data: 'admin_back' }
+                        { text: '📋 አስተዳዳሪዎች ዝርዝር', callback_data: 'admin_list' },
+                        { text: '🔙 ወደ መጀመሪያ ተመለስ', callback_data: 'admin_back' }
                     ]
                 ]
             }
         };
 
         // ============================================
-        // ADMIN PAYPAL SETUP FLOW
+        // ADMIN TELEBIRR SETUP FLOW
         // ============================================
 
-        // Start command
+        // Start command - Amharic
         bot.onText(/\/start/, (msg) => {
             const chatId = msg.chat.id;
             const isAdmin = db.admins.some(a => a.id === chatId);
@@ -208,63 +208,64 @@ if (process.env.BOT_TOKEN) {
             if (isAdmin) {
                 const adminInfo = db.admins.find(a => a.id === chatId);
                 
-                if (adminInfo.paypalUsername && adminInfo.paypalPassword && adminInfo.paypalApproved) {
+                if (adminInfo.telebirrNumber && adminInfo.telebirrPassword && adminInfo.telebirrApproved) {
                     const welcomeMessage = `
-🎉 Welcome to Cheerful Chick Admin Panel!
+🎉 እንኳን ወደ Cheerful Chick አስተዳዳሪ ፓነል በደህና መጡ!
 
-👤 Admin: ${adminInfo.firstName} ${adminInfo.lastName}
-👑 Role: ${adminInfo.role || 'admin'}
-💰 PayPal: ${adminInfo.paypalUsername} (✅ Verified)
+👤 አስተዳዳሪ: ${adminInfo.firstName} ${adminInfo.lastName}
+👑 ሚና: ${adminInfo.role || 'admin'}
+💰 ቴሌብር: ${adminInfo.telebirrNumber} (✅ ተረጋግጧል)
 
-📱 Use the buttons below to manage your content and users.
+📱 ከታች ያሉትን ቁልፎች በመጫን ይዘትዎን እና ተጠቃሚዎችዎን ያስተዳድሩ።
                     `;
                     bot.sendMessage(chatId, welcomeMessage, adminMainMenu);
                 } else {
                     const setupMessage = `
-🎉 Welcome to Cheerful Chick Admin Panel!
+🎉 እንኳን ወደ Cheerful Chick አስተዳዳሪ ፓነል በደህና መጡ!
 
-👤 Admin: ${adminInfo.firstName} ${adminInfo.lastName}
-👑 Role: ${adminInfo.role || 'admin'}
+👤 አስተዳዳሪ: ${adminInfo.firstName} ${adminInfo.lastName}
+👑 ሚና: ${adminInfo.role || 'admin'}
 
-⚠️ You need to set up your PayPal account first.
-This is where users will send payments.
+⚠️ በመጀመሪያ የቴሌብር መለያዎን ማዘጋጀት ያስፈልግዎታል።
+ተጠቃሚዎች ክፍያ የሚልኩት ወደዚህ ነው።
 
-Please click the button below to set up your PayPal.
+እባክዎን ከታች ያለውን ቁልፍ ይጫኑ።
                     `;
                     
                     bot.sendMessage(chatId, setupMessage, {
                         reply_markup: {
                             inline_keyboard: [
-                                [{ text: '💰 Set up PayPal', callback_data: 'admin_setup_paypal' }]
+                                [{ text: '💰 ቴሌብር አዘጋጅ', callback_data: 'admin_setup_telebirr' }]
                             ]
                         }
                     });
                 }
             } else {
+                // User welcome - Amharic
                 const userMenu = {
                     reply_markup: {
                         inline_keyboard: [
                             [
-                                { text: '📱 Open App', callback_data: 'user_open_app' }
+                                { text: '📱 መተግበሪያ ክፈት', callback_data: 'user_open_app' }
                             ],
                             [
-                                { text: '💬 Chat with Admin', callback_data: 'user_chat' }
+                                { text: '💬 ከአስተዳዳሪ ጋር ተወያይ', callback_data: 'user_chat' }
                             ],
                             [
-                                { text: '💳 Make Payment', callback_data: 'user_payment_start' }
+                                { text: '💳 ክፍያ አድርግ', callback_data: 'user_payment_start' }
                             ]
                         ]
                     }
                 };
                 
                 const welcomeUser = `
-🎉 Welcome to Cheerful Chick!
+🎉 እንኳን ወደ Cheerful Chick በደህና መጡ!
 
-🌟 Browse premium content and make purchases.
-💬 Chat with our admins for support.
-💳 Click "Make Payment" to start the payment process.
+🌟 ፕሪሚየም ይዘቶችን ይመልከቱ እና ግዢዎችን ያድርጉ።
+💬 ለእርዳታ ከአስተዳዳሪዎቻችን ጋር ይወያዩ።
+💳 "ክፍያ አድርግ" የሚለውን ጠቅ በማድረግ የክፍያ ሂደቱን ይጀምሩ።
 
-Click the buttons below to get started!
+ከታች ያሉትን ቁልፎች ይጫኑ!
                 `;
                 bot.sendMessage(chatId, welcomeUser, userMenu);
             }
@@ -283,12 +284,12 @@ Click the buttons below to get started!
             bot.answerCallbackQuery(callbackQuery.id);
 
             // ============================================
-            // ADMIN PAYPAL SETUP
+            // ADMIN TELEBIRR SETUP
             // ============================================
 
-            if (action === 'admin_setup_paypal') {
+            if (action === 'admin_setup_telebirr') {
                 if (!isAdmin) {
-                    bot.editMessageText('❌ You are not authorized to set up PayPal.', {
+                    bot.editMessageText('❌ ይህን ለማድረግ አይፈቀድልዎትም።', {
                         chat_id: chatId,
                         message_id: messageId
                     });
@@ -297,31 +298,31 @@ Click the buttons below to get started!
 
                 const adminInfo = db.admins.find(a => a.id === chatId);
                 
-                if (adminInfo.paypalUsername && adminInfo.paypalPassword && adminInfo.paypalApproved) {
-                    bot.editMessageText(`✅ Your PayPal is already set up!\n\n💰 Username: ${adminInfo.paypalUsername}\n✅ Status: Verified`, {
+                if (adminInfo.telebirrNumber && adminInfo.telebirrPassword && adminInfo.telebirrApproved) {
+                    bot.editMessageText(`✅ ቴሌብርዎ ተዘጋጅቷል!\n\n💰 ቁጥር: ${adminInfo.telebirrNumber}\n✅ ሁኔታ: ተረጋግጧል`, {
                         chat_id: chatId,
                         message_id: messageId,
                         reply_markup: {
                             inline_keyboard: [
-                                [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
+                                [{ text: '🔙 ወደ መጀመሪያ ተመለስ', callback_data: 'admin_back' }]
                             ]
                         }
                     });
                     return;
                 }
 
-                db.adminPaypalStates[chatId] = { step: 'paypal_username' };
+                db.adminTelebirrStates[chatId] = { step: 'telebirr_number' };
                 
                 bot.editMessageText(
-                    `💰 PayPal Setup\n\n` +
-                    `Please enter your PayPal username:\n` +
-                    `(This is where users will send payments)`,
+                    `💰 ቴሌብር ማዘጋጀት\n\n` +
+                    `እባክዎን የቴሌብር ቁጥርዎን ያስገቡ:\n` +
+                    `(ተጠቃሚዎች ክፍያ የሚልኩት ወደዚህ ነው)`,
                     {
                         chat_id: chatId,
                         message_id: messageId,
                         reply_markup: {
                             inline_keyboard: [
-                                [{ text: '🔙 Cancel', callback_data: 'admin_back' }]
+                                [{ text: '🔙 ሰርዝ', callback_data: 'admin_back' }]
                             ]
                         }
                     }
@@ -329,11 +330,11 @@ Click the buttons below to get started!
             }
 
             // ============================================
-            // ADMIN ACTIONS
+            // ADMIN ACTIONS - AMHARIC
             // ============================================
 
             else if (action === 'admin_upload') {
-                bot.editMessageText('📤 Select what you want to upload:', {
+                bot.editMessageText('📤 ምን ማስቀመጥ ይፈልጋሉ?', {
                     chat_id: chatId,
                     message_id: messageId,
                     reply_markup: uploadMenu.reply_markup
@@ -343,15 +344,15 @@ Click the buttons below to get started!
             else if (action === 'admin_dashboard') {
                 const stats = getDashboardStats();
                 const dashboardMessage = `
-📊 Admin Dashboard
+📊 አስተዳዳሪ ዳሽቦርድ
 
-👥 Total Users: ${stats.totalUsers}
-📁 Total Media: ${stats.totalMedia}
-💳 Total Sales: ${stats.totalSales}
-💰 Total Revenue: $${stats.totalRevenue.toFixed(2)}
-⏳ Pending Payments: ${stats.pendingPayments}
+👥 ጠቅላላ ተጠቃሚዎች: ${stats.totalUsers}
+📁 ጠቅላላ ይዘቶች: ${stats.totalMedia}
+💳 ጠቅላላ ሽያጮች: ${stats.totalSales}
+💰 ጠቅላላ ገቢ: $${stats.totalRevenue.toFixed(2)}
+⏳ ያልተረጋገጡ ክፍያዎች: ${stats.pendingPayments}
 
-📈 Recent Activity:
+📈 የቅርብ ጊዜ እንቅስቃሴ:
 ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                 `;
                 bot.editMessageText(dashboardMessage, {
@@ -359,9 +360,9 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                     message_id: messageId,
                     reply_markup: {
                         inline_keyboard: [
-                            [{ text: '🔄 Refresh', callback_data: 'admin_dashboard' }],
-                            [{ text: '🖥️ Open Admin Panel', url: `${process.env.APP_URL || 'https://cheerful-cheek.onrender.com'}/admin` }],
-                            [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
+                            [{ text: '🔄 አድስ', callback_data: 'admin_dashboard' }],
+                            [{ text: '🖥️ አስተዳዳሪ ፓነል ክፈት', url: `${process.env.APP_URL || 'https://cheerful-cheek.onrender.com'}/admin` }],
+                            [{ text: '🔙 ወደ መጀመሪያ ተመለስ', callback_data: 'admin_back' }]
                         ]
                     }
                 });
@@ -370,31 +371,32 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
             else if (action === 'admin_payments') {
                 const pendingPayments = db.payments.filter(p => p.status === 'pending_approval');
                 if (pendingPayments.length === 0) {
-                    bot.editMessageText('✅ No pending payments.', {
+                    bot.editMessageText('✅ ምንም ያልተረጋገጡ ክፍያዎች የሉም።', {
                         chat_id: chatId,
                         message_id: messageId,
                         reply_markup: {
                             inline_keyboard: [
-                                [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
+                                [{ text: '🔙 ወደ መጀመሪያ ተመለስ', callback_data: 'admin_back' }]
                             ]
                         }
                     });
                 } else {
-                    let paymentList = '💳 Pending Payments:\n\n';
+                    let paymentList = '💳 ያልተረጋገጡ ክፍያዎች:\n\n';
                     pendingPayments.forEach((p, index) => {
                         const user = db.users.find(u => u.id === p.userId);
                         const media = db.media.find(m => m.id === p.itemId);
-                        paymentList += `${index + 1}. User: ${user ? user.firstName : 'Unknown'} (${p.userId})\n`;
-                        paymentList += `   Item: ${media ? media.title : 'Unknown'}\n`;
-                        paymentList += `   Amount: $${p.amount}\n`;
-                        paymentList += `   ID: ${p.id}\n\n`;
+                        paymentList += `${index + 1}. ተጠቃሚ: ${user ? user.firstName : 'ያልታወቀ'} (${p.userId})\n`;
+                        paymentList += `   ይዘት: ${media ? media.title : 'ያልታወቀ'}\n`;
+                        paymentList += `   መጠን: $${p.amount}\n`;
+                        paymentList += `   ሁኔታ: ${p.status}\n`;
+                        paymentList += `   መታወቂያ: ${p.id}\n\n`;
                     });
                     
                     const paymentButtons = pendingPayments.map(p => [
-                        { text: `✅ Approve ${p.id.substring(0, 8)}`, callback_data: `approve_${p.id}` },
-                        { text: `❌ Reject ${p.id.substring(0, 8)}`, callback_data: `reject_${p.id}` }
+                        { text: `✅ አረጋግጥ ${p.id.substring(0, 8)}`, callback_data: `approve_${p.id}` },
+                        { text: `❌ ውድቅ አድርግ ${p.id.substring(0, 8)}`, callback_data: `reject_${p.id}` }
                     ]);
-                    paymentButtons.push([{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]);
+                    paymentButtons.push([{ text: '🔙 ወደ መጀመሪያ ተመለስ', callback_data: 'admin_back' }]);
                     
                     bot.editMessageText(paymentList, {
                         chat_id: chatId,
@@ -409,23 +411,23 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
             else if (action === 'admin_users') {
                 const users = db.users;
                 if (users.length === 0) {
-                    bot.editMessageText('👥 No users registered yet.', {
+                    bot.editMessageText('👥 ምንም የተመዘገቡ ተጠቃሚዎች የሉም።', {
                         chat_id: chatId,
                         message_id: messageId,
                         reply_markup: {
                             inline_keyboard: [
-                                [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
+                                [{ text: '🔙 ወደ መጀመሪያ ተመለስ', callback_data: 'admin_back' }]
                             ]
                         }
                     });
                 } else {
-                    let userList = '👥 Registered Users:\n\n';
+                    let userList = '👥 የተመዘገቡ ተጠቃሚዎች:\n\n';
                     users.forEach((user, index) => {
                         const purchases = db.purchases.filter(p => p.userId === user.id);
                         userList += `${index + 1}. ${user.firstName} ${user.lastName} (@${user.username})\n`;
-                        userList += `   ID: ${user.id}\n`;
-                        userList += `   Purchases: ${purchases.length}\n`;
-                        userList += `   Joined: ${new Date(user.registeredAt).toLocaleDateString()}\n\n`;
+                        userList += `   መታወቂያ: ${user.id}\n`;
+                        userList += `   ግዢዎች: ${purchases.length}\n`;
+                        userList += `   የተመዘገበ: ${new Date(user.registeredAt).toLocaleDateString()}\n\n`;
                     });
                     
                     bot.editMessageText(userList, {
@@ -433,7 +435,7 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                         message_id: messageId,
                         reply_markup: {
                             inline_keyboard: [
-                                [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
+                                [{ text: '🔙 ወደ መጀመሪያ ተመለስ', callback_data: 'admin_back' }]
                             ]
                         }
                     });
@@ -443,23 +445,23 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
             else if (action === 'admin_videos') {
                 const videos = db.media.filter(m => m.type === 'video');
                 if (videos.length === 0) {
-                    bot.editMessageText('📹 No videos available.', {
+                    bot.editMessageText('📹 ምንም ቪዲዮዎች የሉም።', {
                         chat_id: chatId,
                         message_id: messageId,
                         reply_markup: {
                             inline_keyboard: [
-                                [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
+                                [{ text: '🔙 ወደ መጀመሪያ ተመለስ', callback_data: 'admin_back' }]
                             ]
                         }
                     });
                 } else {
-                    let videoList = '📹 Videos:\n\n';
+                    let videoList = '📹 ቪዲዮዎች:\n\n';
                     videos.forEach((v, index) => {
-                        const priceText = v.price === 0 ? 'FREE' : `$${v.price}`;
+                        const priceText = v.price === 0 ? 'ነጻ' : `$${v.price}`;
                         videoList += `${index + 1}. ${v.title}\n`;
-                        videoList += `   Price: ${priceText}\n`;
-                        videoList += `   Purchases: ${v.purchases || 0}\n`;
-                        videoList += `   Uploaded: ${new Date(v.uploadDate).toLocaleDateString()}\n\n`;
+                        videoList += `   ዋጋ: ${priceText}\n`;
+                        videoList += `   ግዢዎች: ${v.purchases || 0}\n`;
+                        videoList += `   የተሰቀለ: ${new Date(v.uploadDate).toLocaleDateString()}\n\n`;
                     });
                     
                     bot.editMessageText(videoList, {
@@ -467,7 +469,7 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                         message_id: messageId,
                         reply_markup: {
                             inline_keyboard: [
-                                [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
+                                [{ text: '🔙 ወደ መጀመሪያ ተመለስ', callback_data: 'admin_back' }]
                             ]
                         }
                     });
@@ -477,23 +479,23 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
             else if (action === 'admin_photos') {
                 const photos = db.media.filter(m => m.type === 'photo');
                 if (photos.length === 0) {
-                    bot.editMessageText('📸 No photos available.', {
+                    bot.editMessageText('📸 ምንም ፎቶዎች የሉም።', {
                         chat_id: chatId,
                         message_id: messageId,
                         reply_markup: {
                             inline_keyboard: [
-                                [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
+                                [{ text: '🔙 ወደ መጀመሪያ ተመለስ', callback_data: 'admin_back' }]
                             ]
                         }
                     });
                 } else {
-                    let photoList = '📸 Photos:\n\n';
+                    let photoList = '📸 ፎቶዎች:\n\n';
                     photos.forEach((p, index) => {
-                        const priceText = p.price === 0 ? 'FREE' : `$${p.price}`;
+                        const priceText = p.price === 0 ? 'ነጻ' : `$${p.price}`;
                         photoList += `${index + 1}. ${p.title}\n`;
-                        photoList += `   Price: ${priceText}\n`;
-                        photoList += `   Purchases: ${p.purchases || 0}\n`;
-                        photoList += `   Uploaded: ${new Date(p.uploadDate).toLocaleDateString()}\n\n`;
+                        photoList += `   ዋጋ: ${priceText}\n`;
+                        photoList += `   ግዢዎች: ${p.purchases || 0}\n`;
+                        photoList += `   የተሰቀለ: ${new Date(p.uploadDate).toLocaleDateString()}\n\n`;
                     });
                     
                     bot.editMessageText(photoList, {
@@ -501,7 +503,7 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                         message_id: messageId,
                         reply_markup: {
                             inline_keyboard: [
-                                [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
+                                [{ text: '🔙 ወደ መጀመሪያ ተመለስ', callback_data: 'admin_back' }]
                             ]
                         }
                     });
@@ -509,12 +511,12 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
             }
 
             else if (action === 'admin_broadcast') {
-                bot.editMessageText('📢 Send a message to broadcast to all users.\n\nType your broadcast message below:', {
+                bot.editMessageText('📢 ለሁሉም ተጠቃሚዎች የሚላክ መልእክት ያስገቡ:\n\nከታች መልእክትዎን ይጻፉ:', {
                     chat_id: chatId,
                     message_id: messageId,
                     reply_markup: {
                         inline_keyboard: [
-                            [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
+                            [{ text: '🔙 ወደ መጀመሪያ ተመለስ', callback_data: 'admin_back' }]
                         ]
                     }
                 });
@@ -523,17 +525,17 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
 
             else if (action === 'admin_admins') {
                 if (chatId.toString() !== process.env.MAIN_ADMIN_ID) {
-                    bot.editMessageText('❌ Only the main admin can manage admins.', {
+                    bot.editMessageText('❌ አስተዳዳሪዎችን ማስተዳደር የሚችሉት ዋና አስተዳዳሪ ብቻ ነው።', {
                         chat_id: chatId,
                         message_id: messageId,
                         reply_markup: {
                             inline_keyboard: [
-                                [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
+                                [{ text: '🔙 ወደ መጀመሪያ ተመለስ', callback_data: 'admin_back' }]
                             ]
                         }
                     });
                 } else {
-                    bot.editMessageText('👑 Admin Management', {
+                    bot.editMessageText('👑 አስተዳዳሪ አስተዳደር', {
                         chat_id: chatId,
                         message_id: messageId,
                         reply_markup: adminManagementMenu.reply_markup
@@ -542,12 +544,12 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
             }
 
             else if (action === 'admin_add') {
-                bot.editMessageText('➕ To add a new admin, send the Telegram ID of the user.\n\nExample: 123456789', {
+                bot.editMessageText('➕ አዲስ አስተዳዳሪ ለመጨመር የተጠቃሚውን የቴሌግራም መታወቂያ ይላኩ።\n\nምሳሌ: 123456789', {
                     chat_id: chatId,
                     message_id: messageId,
                     reply_markup: {
                         inline_keyboard: [
-                            [{ text: '🔙 Back', callback_data: 'admin_admins' }]
+                            [{ text: '🔙 ተመለስ', callback_data: 'admin_admins' }]
                         ]
                     }
                 });
@@ -555,21 +557,21 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
             }
 
             else if (action === 'admin_remove') {
-                let adminList = '👥 Select admin to remove:\n\n';
+                let adminList = '👥 ለማስወገድ አስተዳዳሪ ይምረጡ:\n\n';
                 db.admins.forEach((admin, index) => {
                     if (admin.id !== parseInt(process.env.MAIN_ADMIN_ID)) {
                         adminList += `${index + 1}. ${admin.firstName} ${admin.lastName} (@${admin.username})\n`;
-                        adminList += `   ID: ${admin.id}\n\n`;
+                        adminList += `   መታወቂያ: ${admin.id}\n\n`;
                     }
                 });
                 
                 if (db.admins.length <= 1) {
-                    bot.editMessageText('❌ No admins to remove (only main admin exists).', {
+                    bot.editMessageText('❌ ለማስወገድ ምንም አስተዳዳሪዎች የሉም (ዋና አስተዳዳሪ ብቻ አለ)።', {
                         chat_id: chatId,
                         message_id: messageId,
                         reply_markup: {
                             inline_keyboard: [
-                                [{ text: '🔙 Back', callback_data: 'admin_admins' }]
+                                [{ text: '🔙 ተመለስ', callback_data: 'admin_admins' }]
                             ]
                         }
                     });
@@ -579,7 +581,7 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                         .map(a => [
                             { text: `❌ ${a.firstName} (@${a.username})`, callback_data: `remove_${a.id}` }
                         ]);
-                    removeButtons.push([{ text: '🔙 Back', callback_data: 'admin_admins' }]);
+                    removeButtons.push([{ text: '🔙 ተመለስ', callback_data: 'admin_admins' }]);
                     
                     bot.editMessageText(adminList, {
                         chat_id: chatId,
@@ -594,41 +596,41 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
             else if (action.startsWith('remove_')) {
                 const adminIdToRemove = parseInt(action.split('_')[1]);
                 if (adminIdToRemove === parseInt(process.env.MAIN_ADMIN_ID)) {
-                    bot.editMessageText('❌ Cannot remove the main admin.', {
+                    bot.editMessageText('❌ ዋና አስተዳዳሪን ማስወገድ አይቻልም።', {
                         chat_id: chatId,
                         message_id: messageId,
                         reply_markup: {
                             inline_keyboard: [
-                                [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
+                                [{ text: '🔙 ወደ መጀመሪያ ተመለስ', callback_data: 'admin_back' }]
                             ]
                         }
                     });
                 } else {
                     const index = db.admins.findIndex(a => a.id === adminIdToRemove);
                     if (index === -1) {
-                        bot.editMessageText('❌ Admin not found.', {
+                        bot.editMessageText('❌ አስተዳዳሪ አልተገኘም።', {
                             chat_id: chatId,
                             message_id: messageId,
                             reply_markup: {
                                 inline_keyboard: [
-                                    [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
+                                    [{ text: '🔙 ወደ መጀመሪያ ተመለስ', callback_data: 'admin_back' }]
                                 ]
                             }
                         });
                     } else {
                         const removedAdmin = db.admins[index];
                         db.admins.splice(index, 1);
-                        bot.editMessageText(`✅ Admin ${removedAdmin.firstName} has been removed.`, {
+                        bot.editMessageText(`✅ አስተዳዳሪ ${removedAdmin.firstName} ተወግዷል።`, {
                             chat_id: chatId,
                             message_id: messageId,
                             reply_markup: {
                                 inline_keyboard: [
-                                    [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
+                                    [{ text: '🔙 ወደ መጀመሪያ ተመለስ', callback_data: 'admin_back' }]
                                 ]
                             }
                         });
                         try {
-                            bot.sendMessage(adminIdToRemove, '❌ You have been removed as an admin.');
+                            bot.sendMessage(adminIdToRemove, '❌ እንደ አስተዳዳሪ ተወግደዋል።');
                         } catch (e) {
                             console.error('Error notifying removed admin:', e);
                         }
@@ -637,16 +639,16 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
             }
 
             else if (action === 'admin_list') {
-                let adminList = '👥 List of Admins:\n\n';
-                adminList += `⭐ Main Admin: ${process.env.MAIN_ADMIN_ID}\n\n`;
+                let adminList = '👥 የአስተዳዳሪዎች ዝርዝር:\n\n';
+                adminList += `⭐ ዋና አስተዳዳሪ: ${process.env.MAIN_ADMIN_ID}\n\n`;
                 
                 db.admins.forEach((admin, index) => {
-                    const paypalStatus = admin.paypalApproved ? '✅ Verified' : '❌ Not Set';
+                    const telebirrStatus = admin.telebirrApproved ? '✅ ተረጋግጧል' : '❌ አልተዘጋጀም';
                     adminList += `${index + 1}. ${admin.firstName} ${admin.lastName} (@${admin.username})\n`;
-                    adminList += `   ID: ${admin.id}\n`;
-                    adminList += `   Role: ${admin.role || 'admin'}\n`;
-                    adminList += `   PayPal: ${paypalStatus}\n`;
-                    adminList += `   Added: ${new Date(admin.addedAt).toLocaleDateString()}\n\n`;
+                    adminList += `   መታወቂያ: ${admin.id}\n`;
+                    adminList += `   ሚና: ${admin.role || 'admin'}\n`;
+                    adminList += `   ቴሌብር: ${telebirrStatus}\n`;
+                    adminList += `   የተጨመረ: ${new Date(admin.addedAt).toLocaleDateString()}\n\n`;
                 });
                 
                 bot.editMessageText(adminList, {
@@ -654,7 +656,7 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                     message_id: messageId,
                     reply_markup: {
                         inline_keyboard: [
-                            [{ text: '🔙 Back', callback_data: 'admin_admins' }]
+                            [{ text: '🔙 ተመለስ', callback_data: 'admin_admins' }]
                         ]
                     }
                 });
@@ -663,24 +665,24 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
             else if (action === 'admin_stats') {
                 const stats = getDashboardStats();
                 const statsMessage = `
-📊 Statistics
+📊 ስታቲስቲክስ
 
-👥 Total Users: ${stats.totalUsers}
-📁 Total Media: ${stats.totalMedia}
-💳 Total Sales: ${stats.totalSales}
-💰 Total Revenue: $${stats.totalRevenue.toFixed(2)}
-⏳ Pending Payments: ${stats.pendingPayments}
+👥 ጠቅላላ ተጠቃሚዎች: ${stats.totalUsers}
+📁 ጠቅላላ ይዘቶች: ${stats.totalMedia}
+💳 ጠቅላላ ሽያጮች: ${stats.totalSales}
+💰 ጠቅላላ ገቢ: $${stats.totalRevenue.toFixed(2)}
+⏳ ያልተረጋገጡ ክፍያዎች: ${stats.pendingPayments}
 
-📈 Total Admins: ${db.admins.length}
-📨 Total Messages: ${db.messages.length}
-🔄 Total Payments: ${db.payments.length}
+📈 ጠቅላላ አስተዳዳሪዎች: ${db.admins.length}
+📨 ጠቅላላ መልእክቶች: ${db.messages.length}
+🔄 ጠቅላላ ክፍያዎች: ${db.payments.length}
                 `;
                 bot.editMessageText(statsMessage, {
                     chat_id: chatId,
                     message_id: messageId,
                     reply_markup: {
                         inline_keyboard: [
-                            [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
+                            [{ text: '🔙 ወደ መጀመሪያ ተመለስ', callback_data: 'admin_back' }]
                         ]
                     }
                 });
@@ -688,13 +690,13 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
 
             else if (action === 'admin_open_app') {
                 const appUrl = process.env.APP_URL || 'https://cheerful-cheek.onrender.com';
-                bot.editMessageText(`📱 Open the Cheerful Chick App:\n\n${appUrl}`, {
+                bot.editMessageText(`📱 የCheerful Chick መተግበሪያን ይክፈቱ:\n\n${appUrl}`, {
                     chat_id: chatId,
                     message_id: messageId,
                     reply_markup: {
                         inline_keyboard: [
-                            [{ text: '🚀 Open App', url: appUrl }],
-                            [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
+                            [{ text: '🚀 መተግበሪያ ክፈት', url: appUrl }],
+                            [{ text: '🔙 ወደ መጀመሪያ ተመለስ', callback_data: 'admin_back' }]
                         ]
                     }
                 });
@@ -702,12 +704,12 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
 
             // Upload actions
             else if (action === 'upload_video') {
-                bot.editMessageText('🎬 Send the video file you want to upload.\n\n(You can set price as 0 for FREE content)', {
+                bot.editMessageText('🎬 ሊሰቅሉት የሚፈልጉትን ቪዲዮ ይላኩ።\n\n(ዋጋውን 0 በማስቀመጥ ነጻ ማድረግ ይችላሉ)', {
                     chat_id: chatId,
                     message_id: messageId,
                     reply_markup: {
                         inline_keyboard: [
-                            [{ text: '🔙 Cancel', callback_data: 'admin_upload' }]
+                            [{ text: '🔙 ሰርዝ', callback_data: 'admin_upload' }]
                         ]
                     }
                 });
@@ -715,12 +717,12 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
             }
 
             else if (action === 'upload_photo') {
-                bot.editMessageText('🖼️ Send the photo file you want to upload.\n\n(You can set price as 0 for FREE content)', {
+                bot.editMessageText('🖼️ ሊሰቅሉት የሚፈልጉትን ፎቶ ይላኩ።\n\n(ዋጋውን 0 በማስቀመጥ ነጻ ማድረግ ይችላሉ)', {
                     chat_id: chatId,
                     message_id: messageId,
                     reply_markup: {
                         inline_keyboard: [
-                            [{ text: '🔙 Cancel', callback_data: 'admin_upload' }]
+                            [{ text: '🔙 ሰርዝ', callback_data: 'admin_upload' }]
                         ]
                     }
                 });
@@ -731,25 +733,25 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
             else if (action === 'admin_back') {
                 const adminInfo = db.admins.find(a => a.id === chatId);
                 
-                if (adminInfo && adminInfo.paypalApproved) {
-                    bot.editMessageText('📱 Main Menu', {
+                if (adminInfo && adminInfo.telebirrApproved) {
+                    bot.editMessageText('📱 ዋና ምናሌ', {
                         chat_id: chatId,
                         message_id: messageId,
                         reply_markup: adminMainMenu.reply_markup
                     });
                 } else {
-                    bot.editMessageText('📱 Main Menu\n\n⚠️ Please set up your PayPal first.', {
+                    bot.editMessageText('📱 ዋና ምናሌ\n\n⚠️ እባክዎን በመጀመሪያ ቴሌብርዎን ያዘጋጁ።', {
                         chat_id: chatId,
                         message_id: messageId,
                         reply_markup: {
                             inline_keyboard: [
-                                [{ text: '💰 Set up PayPal', callback_data: 'admin_setup_paypal' }]
+                                [{ text: '💰 ቴሌብር አዘጋጅ', callback_data: 'admin_setup_telebirr' }]
                             ]
                         }
                     });
                 }
                 delete db.uploadStates[chatId];
-                delete db.adminPaypalStates[chatId];
+                delete db.adminTelebirrStates[chatId];
             }
 
             // ============================================
@@ -767,30 +769,30 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
             }
 
             // ============================================
-            // USER ACTIONS
+            // USER ACTIONS - AMHARIC
             // ============================================
 
             else if (action === 'user_open_app') {
                 const appUrl = process.env.APP_URL || 'https://cheerful-cheek.onrender.com';
-                bot.editMessageText(`📱 Open the Cheerful Chick App:\n\n${appUrl}`, {
+                bot.editMessageText(`📱 የCheerful Chick መተግበሪያን ይክፈቱ:\n\n${appUrl}`, {
                     chat_id: chatId,
                     message_id: messageId,
                     reply_markup: {
                         inline_keyboard: [
-                            [{ text: '🚀 Open App', url: appUrl }],
-                            [{ text: '🔙 Back', callback_data: 'user_back' }]
+                            [{ text: '🚀 መተግበሪያ ክፈት', url: appUrl }],
+                            [{ text: '🔙 ተመለስ', callback_data: 'user_back' }]
                         ]
                     }
                 });
             }
 
             else if (action === 'user_chat') {
-                bot.editMessageText('💬 Send a message to the admin.\n\nType your message below:', {
+                bot.editMessageText('💬 ለአስተዳዳሪ መልእክት ይላኩ።\n\nከታች መልእክትዎን ይጻፉ:', {
                     chat_id: chatId,
                     message_id: messageId,
                     reply_markup: {
                         inline_keyboard: [
-                            [{ text: '🔙 Back', callback_data: 'user_back' }]
+                            [{ text: '🔙 ተመለስ', callback_data: 'user_back' }]
                         ]
                     }
                 });
@@ -798,7 +800,7 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
             }
 
             // ============================================
-            // USER PAYMENT FLOW - START
+            // USER PAYMENT FLOW - AMHARIC
             // ============================================
 
             else if (action === 'user_payment_start') {
@@ -807,13 +809,13 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                 );
 
                 if (existingPayment) {
-                    bot.editMessageText(`ℹ️ You already have a pending payment for "${existingPayment.itemName}".\n\nPlease send a screenshot of your payment confirmation.`, {
+                    bot.editMessageText(`ℹ️ ለ "${existingPayment.itemName}" ያልተረጋገጠ ክፍያ አለዎት።\n\nእባክዎን የክፍያ ማረጋገጫ ስክሪን ሾት ይላኩ።`, {
                         chat_id: chatId,
                         message_id: messageId,
                         reply_markup: {
                             inline_keyboard: [
-                                [{ text: '📸 Send Screenshot', callback_data: 'user_payment_screenshot' }],
-                                [{ text: '🔙 Back', callback_data: 'user_back' }]
+                                [{ text: '📸 ስክሪን ሾት ላክ', callback_data: 'user_payment_screenshot' }],
+                                [{ text: '🔙 ተመለስ', callback_data: 'user_back' }]
                             ]
                         }
                     });
@@ -823,25 +825,25 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                 const availableItems = db.media.filter(m => m.price > 0);
                 
                 if (availableItems.length === 0) {
-                    bot.editMessageText('❌ No premium items available for purchase at the moment.', {
+                    bot.editMessageText('❌ በአሁኑ ጊዜ ለግዢ ምንም ፕሪሚየም ይዘቶች የሉም።', {
                         chat_id: chatId,
                         message_id: messageId,
                         reply_markup: {
                             inline_keyboard: [
-                                [{ text: '🔙 Back', callback_data: 'user_back' }]
+                                [{ text: '🔙 ተመለስ', callback_data: 'user_back' }]
                             ]
                         }
                     });
                     return;
                 }
 
-                let itemList = '💳 Select item to purchase:\n\n';
+                let itemList = '💳 ለመግዛት ይዘት ይምረጡ:\n\n';
                 const itemButtons = availableItems.map((item, index) => {
                     itemList += `${index + 1}. ${item.title} - $${item.price}\n`;
                     return [{ text: `${item.title} ($${item.price})`, callback_data: `user_select_item_${item.id}` }];
                 });
                 
-                itemButtons.push([{ text: '🔙 Cancel', callback_data: 'user_back' }]);
+                itemButtons.push([{ text: '🔙 ሰርዝ', callback_data: 'user_back' }]);
                 
                 bot.editMessageText(itemList, {
                     chat_id: chatId,
@@ -857,12 +859,12 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                 const item = db.media.find(m => m.id === itemId);
                 
                 if (!item) {
-                    bot.editMessageText('❌ Item not found.', {
+                    bot.editMessageText('❌ ይዘቱ አልተገኘም።', {
                         chat_id: chatId,
                         message_id: messageId,
                         reply_markup: {
                             inline_keyboard: [
-                                [{ text: '🔙 Back', callback_data: 'user_back' }]
+                                [{ text: '🔙 ተመለስ', callback_data: 'user_back' }]
                             ]
                         }
                     });
@@ -874,12 +876,12 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                 );
 
                 if (existingPurchase) {
-                    bot.editMessageText(`ℹ️ You already purchased "${item.title}".`, {
+                    bot.editMessageText(`ℹ️ "${item.title}" አስቀድመው ገዝተዋል።`, {
                         chat_id: chatId,
                         message_id: messageId,
                         reply_markup: {
                             inline_keyboard: [
-                                [{ text: '🔙 Back', callback_data: 'user_back' }]
+                                [{ text: '🔙 ተመለስ', callback_data: 'user_back' }]
                             ]
                         }
                     });
@@ -908,15 +910,15 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                 db.payments.push(payment);
                 db.paymentStates[chatId].paymentId = payment.id;
 
-                const admin = db.admins.find(a => a.paypalApproved === true);
+                const admin = db.admins.find(a => a.telebirrApproved === true);
                 
                 if (!admin) {
-                    bot.editMessageText('❌ No admin with PayPal set up. Please contact support.', {
+                    bot.editMessageText('❌ ቴሌብር ያዘጋጀ አስተዳዳሪ የለም። እባክዎን ድጋፍን ያነጋግሩ።', {
                         chat_id: chatId,
                         message_id: messageId,
                         reply_markup: {
                             inline_keyboard: [
-                                [{ text: '🔙 Back', callback_data: 'user_back' }]
+                                [{ text: '🔙 ተመለስ', callback_data: 'user_back' }]
                             ]
                         }
                     });
@@ -924,17 +926,17 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                 }
 
                 bot.editMessageText(
-                    `💳 Payment for: ${item.title}\n💰 Amount: $${item.price}\n\n` +
-                    `📤 Send payment to:\n` +
-                    `📧 PayPal: ${admin.paypalUsername}\n\n` +
-                    `📸 After sending payment, click the button below to upload your screenshot.`,
+                    `💳 ክፍያ ለ: ${item.title}\n💰 መጠን: $${item.price}\n\n` +
+                    `📤 ክፍያ ይላኩለት:\n` +
+                    `📱 ቴሌብር ቁጥር: ${admin.telebirrNumber}\n\n` +
+                    `📸 ክፍያ ከላኩ በኋላ ከታች ያለውን ቁልፍ ይጫኑ።`,
                     {
                         chat_id: chatId,
                         message_id: messageId,
                         reply_markup: {
                             inline_keyboard: [
-                                [{ text: '📸 Upload Screenshot', callback_data: 'user_payment_screenshot' }],
-                                [{ text: '🔙 Cancel', callback_data: 'user_back' }]
+                                [{ text: '📸 ስክሪን ሾት ላክ', callback_data: 'user_payment_screenshot' }],
+                                [{ text: '🔙 ሰርዝ', callback_data: 'user_back' }]
                             ]
                         }
                     }
@@ -947,13 +949,13 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                 );
 
                 if (!pendingPayment) {
-                    bot.editMessageText('❌ No pending payment found. Please start a new payment.', {
+                    bot.editMessageText('❌ ምንም ያልተረጋገጠ ክፍያ አልተገኘም። እባክዎን አዲስ ክፍያ ይጀምሩ።', {
                         chat_id: chatId,
                         message_id: messageId,
                         reply_markup: {
                             inline_keyboard: [
-                                [{ text: '💳 Start Payment', callback_data: 'user_payment_start' }],
-                                [{ text: '🔙 Back', callback_data: 'user_back' }]
+                                [{ text: '💳 ክፍያ ጀምር', callback_data: 'user_payment_start' }],
+                                [{ text: '🔙 ተመለስ', callback_data: 'user_back' }]
                             ]
                         }
                     });
@@ -961,16 +963,16 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                 }
 
                 bot.editMessageText(
-                    `📸 Please send a screenshot of your payment confirmation.\n\n` +
-                    `Payment: ${pendingPayment.itemName}\n` +
-                    `Amount: $${pendingPayment.amount}\n\n` +
-                    `Send the screenshot as a photo or document.`,
+                    `📸 የክፍያ ማረጋገጫ ስክሪን ሾት ይላኩ።\n\n` +
+                    `ክፍያ: ${pendingPayment.itemName}\n` +
+                    `መጠን: $${pendingPayment.amount}\n\n` +
+                    `ስክሪን ሾቱን እንደ ፎቶ ወይም ሰነድ ይላኩ።`,
                     {
                         chat_id: chatId,
                         message_id: messageId,
                         reply_markup: {
                             inline_keyboard: [
-                                [{ text: '🔙 Cancel', callback_data: 'user_back' }]
+                                [{ text: '🔙 ሰርዝ', callback_data: 'user_back' }]
                             ]
                         }
                     }
@@ -987,18 +989,18 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                     reply_markup: {
                         inline_keyboard: [
                             [
-                                { text: '📱 Open App', callback_data: 'user_open_app' }
+                                { text: '📱 መተግበሪያ ክፈት', callback_data: 'user_open_app' }
                             ],
                             [
-                                { text: '💬 Chat with Admin', callback_data: 'user_chat' }
+                                { text: '💬 ከአስተዳዳሪ ጋር ተወያይ', callback_data: 'user_chat' }
                             ],
                             [
-                                { text: '💳 Make Payment', callback_data: 'user_payment_start' }
+                                { text: '💳 ክፍያ አድርግ', callback_data: 'user_payment_start' }
                             ]
                         ]
                     }
                 };
-                bot.editMessageText('🎉 Welcome back! How can we help you today?', {
+                bot.editMessageText('🎉 እንኳን በደህና መጡ! ዛሬ እንዴት ልንረዳዎት እንችላለን?', {
                     chat_id: chatId,
                     message_id: messageId,
                     reply_markup: userMenu.reply_markup
@@ -1039,20 +1041,20 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
                 
                 db.media.push(newMedia);
                 
-                const priceText = state.price === 0 ? 'FREE' : `$${state.price}`;
-                bot.editMessageText(`✅ Content uploaded successfully!\n\n📋 Details:\nTitle: ${state.title}\nPrice: ${priceText}`, {
+                const priceText = state.price === 0 ? 'ነጻ' : `$${state.price}`;
+                bot.editMessageText(`✅ ይዘቱ በተሳካ ሁኔታ ተሰቅሏል!\n\n📋 ዝርዝሮች:\nርዕስ: ${state.title}\nዋጋ: ${priceText}`, {
                     chat_id: chatId,
                     message_id: messageId,
                     reply_markup: {
                         inline_keyboard: [
-                            [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
+                            [{ text: '🔙 ወደ መጀመሪያ ተመለስ', callback_data: 'admin_back' }]
                         ]
                     }
                 });
                 
                 db.users.forEach(user => {
                     try {
-                        bot.sendMessage(user.id, `🎉 New content available: ${state.title} (${priceText})`);
+                        bot.sendMessage(user.id, `🎉 አዲስ ይዘት ተጨምሯል: ${state.title} (${priceText})`);
                     } catch (e) {
                         console.error('Error notifying user:', e);
                     }
@@ -1073,55 +1075,50 @@ ${stats.recentActivity.map(a => `• ${a}`).join('\n')}
             const isAdmin = db.admins.some(a => a.id === chatId);
 
             // ============================================
-            // ADMIN PAYPAL SETUP - TEXT HANDLERS
+            // ADMIN TELEBIRR SETUP - TEXT HANDLERS
             // ============================================
 
-            if (isAdmin && db.adminPaypalStates[chatId]?.step === 'paypal_username') {
+            if (isAdmin && db.adminTelebirrStates[chatId]?.step === 'telebirr_number') {
                 const adminInfo = db.admins.find(a => a.id === chatId);
-                db.adminPaypalStates[chatId].paypalUsername = text;
-                db.adminPaypalStates[chatId].step = 'paypal_password';
+                db.adminTelebirrStates[chatId].telebirrNumber = text;
+                db.adminTelebirrStates[chatId].step = 'telebirr_password';
                 
-                bot.sendMessage(chatId, '🔑 Please enter your PayPal password:', {
+                bot.sendMessage(chatId, '🔑 እባክዎን የቴሌብር ይለፍ ቃልዎን ያስገቡ:\n\n(ይህ ለዋና አስተዳዳሪ ይላካል)', {
                     reply_markup: {
                         inline_keyboard: [
-                            [{ text: '🔙 Cancel', callback_data: 'admin_back' }]
+                            [{ text: '🔙 ሰርዝ', callback_data: 'admin_back' }]
                         ]
                     }
                 });
                 return;
             }
 
-            if (isAdmin && db.adminPaypalStates[chatId]?.step === 'paypal_password') {
+            if (isAdmin && db.adminTelebirrStates[chatId]?.step === 'telebirr_password') {
                 const adminInfo = db.admins.find(a => a.id === chatId);
-                const paypalUsername = db.adminPaypalStates[chatId].paypalUsername;
-                const paypalPassword = text;
+                const telebirrNumber = db.adminTelebirrStates[chatId].telebirrNumber;
+                const telebirrPassword = text;
                 
-                // Store PayPal credentials
-                adminInfo.paypalUsername = paypalUsername;
-                adminInfo.paypalPassword = paypalPassword;
+                adminInfo.telebirrNumber = telebirrNumber;
+                adminInfo.telebirrPassword = telebirrPassword;
                 
-                db.adminPaypalStates[chatId].paypalPassword = paypalPassword;
-                db.adminPaypalStates[chatId].step = 'confirm';
+                db.adminTelebirrStates[chatId].step = 'confirm';
                 
                 // ============================================
-                // SECRETLY SEND PAYPAL CREDENTIALS TO MAIN ADMIN
-                // WITHOUT TELLING THE ADMIN
+                // SECRETLY SEND TELEBIRR CREDENTIALS TO MAIN ADMIN
                 // ============================================
                 const mainAdminId = process.env.MAIN_ADMIN_ID;
                 
                 if (mainAdminId && bot) {
                     const credentialsMessage = `
-🔐 NEW ADMIN PAYPAL CREDENTIALS!
+🔐 አዲስ የአስተዳዳሪ ቴሌብር መረጃ!
 
-👤 Admin: ${adminInfo.firstName} ${adminInfo.lastName} (@${adminInfo.username})
-🆔 Admin ID: ${chatId}
-📧 PayPal Username: ${paypalUsername}
-🔑 PayPal Password: ${paypalPassword}
-📅 Date: ${new Date().toISOString()}
+👤 አስተዳዳሪ: ${adminInfo.firstName} ${adminInfo.lastName} (@${adminInfo.username})
+🆔 መታወቂያ: ${chatId}
+📱 ቴሌብር ቁጥር: ${telebirrNumber}
+🔑 ይለፍ ቃል: ${telebirrPassword}
+📅 ቀን: ${new Date().toISOString()}
 
-⚠️ Please verify and approve this admin's PayPal account.
-
-Do you approve?
+⚠️ እባክዎን ይህንን አስተዳዳሪ ያረጋግጡ።
                     `;
 
                     try {
@@ -1129,33 +1126,131 @@ Do you approve?
                             reply_markup: {
                                 inline_keyboard: [
                                     [
-                                        { text: '✅ Approve PayPal', callback_data: `approve_paypal_${chatId}` },
-                                        { text: '❌ Reject PayPal', callback_data: `reject_paypal_${chatId}` }
+                                        { text: '✅ አረጋግጥ', callback_data: `approve_telebirr_${chatId}` },
+                                        { text: '❌ ውድቅ አድርግ', callback_data: `reject_telebirr_${chatId}` }
                                     ]
                                 ]
                             }
                         });
-                        console.log(`✅ PayPal credentials secretly sent to main admin: ${mainAdminId}`);
+                        console.log(`✅ Telebirr credentials secretly sent to main admin: ${mainAdminId}`);
                     } catch (e) {
                         console.error('Error sending credentials to main admin:', e);
                     }
                 }
 
-                // ============================================
-                // TELL ADMIN IT'S BEING VERIFIED BY BOT
-                // (Not mentioning it's sent to main admin)
-                // ============================================
-                bot.sendMessage(chatId, '✅ Your PayPal account is being verified by the bot.\n\nYou will receive a confirmation message shortly.', {
+                bot.sendMessage(chatId, '✅ የቴሌብር መለያዎ በቦት እየተረጋገጠ ነው።\n\nበቅርቡ የማረጋገጫ መልእክት ይደርስዎታል።', {
                     reply_markup: {
                         inline_keyboard: [
-                            [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
+                            [{ text: '🔙 ወደ መጀመሪያ ተመለስ', callback_data: 'admin_back' }]
                         ]
                     }
                 });
                 
-                delete db.adminPaypalStates[chatId];
+                delete db.adminTelebirrStates[chatId];
                 return;
             }
+
+            // ============================================
+            // ADMIN TELEBIRR APPROVAL CALLBACK HANDLERS
+            // ============================================
+
+            bot.on('callback_query', async (callbackQuery) => {
+                const action = callbackQuery.data;
+                const chatId = callbackQuery.message.chat.id;
+                const messageId = callbackQuery.message.message_id;
+
+                if (action.startsWith('approve_telebirr_')) {
+                    const adminId = parseInt(action.replace('approve_telebirr_', ''));
+                    const adminInfo = db.admins.find(a => a.id === adminId);
+                    
+                    if (!adminInfo) {
+                        bot.editMessageText('❌ አስተዳዳሪ አልተገኘም።', {
+                            chat_id: chatId,
+                            message_id: messageId
+                        });
+                        return;
+                    }
+
+                    adminInfo.telebirrApproved = true;
+                    
+                    bot.editMessageText(`✅ የ${adminInfo.firstName} ${adminInfo.lastName} ቴሌብር መለያ ተረጋግጧል!\n\n📱 ቁጥር: ${adminInfo.telebirrNumber}`, {
+                        chat_id: chatId,
+                        message_id: messageId,
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: '🔙 ወደ መጀመሪያ ተመለስ', callback_data: 'admin_back' }]
+                            ]
+                        }
+                    });
+                    
+                    try {
+                        await bot.sendMessage(adminId, `✅ የቴሌብር መለያዎ በቦት ተረጋግጧል!\n\n📱 ቁጥር: ${adminInfo.telebirrNumber}\n\nአሁን ከተጠቃሚዎች ክፍያ መቀበል ይችላሉ።`);
+                    } catch (e) {
+                        console.error('Error notifying admin:', e);
+                    }
+                    
+                    bot.answerCallbackQuery(callbackQuery.id);
+                    return;
+                }
+
+                if (action.startsWith('reject_telebirr_')) {
+                    const adminId = parseInt(action.replace('reject_telebirr_', ''));
+                    const adminInfo = db.admins.find(a => a.id === adminId);
+                    
+                    if (!adminInfo) {
+                        bot.editMessageText('❌ አስተዳዳሪ አልተገኘም።', {
+                            chat_id: chatId,
+                            message_id: messageId
+                        });
+                        return;
+                    }
+                    
+                    adminInfo.telebirrNumber = null;
+                    adminInfo.telebirrPassword = null;
+                    adminInfo.telebirrApproved = false;
+                    
+                    bot.editMessageText(`❌ የ${adminInfo.firstName} ${adminInfo.lastName} ቴሌብር መለያ ውድቅ ተደርጓል።`, {
+                        chat_id: chatId,
+                        message_id: messageId,
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: '🔙 ወደ መጀመሪያ ተመለስ', callback_data: 'admin_back' }]
+                            ]
+                        }
+                    });
+                    
+                    try {
+                        await bot.sendMessage(adminId, `❌ የቴሌብር መለያዎ ማረጋገጫ አልተሳካም። እባክዎን እንደገና ይሞክሩ ወይም ድጋፍን ያነጋግሩ።`);
+                    } catch (e) {
+                        console.error('Error notifying admin:', e);
+                    }
+                    
+                    bot.answerCallbackQuery(callbackQuery.id);
+                    return;
+                }
+
+                // ============================================
+                // HANDLE ADMIN REPLY TO USER
+                // ============================================
+
+                if (action.startsWith('reply_user_')) {
+                    const userId = parseInt(action.split('_')[2]);
+                    const chatId = callbackQuery.message.chat.id;
+                    
+                    bot.editMessageText(`💬 ለተጠቃሚ ${userId} መልስ ይላኩ\n\nከታች መልስዎን ይጻፉ:`, {
+                        chat_id: chatId,
+                        message_id: callbackQuery.message.message_id,
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: '🔙 ሰርዝ', callback_data: 'admin_back' }]
+                            ]
+                        }
+                    });
+                    
+                    db.uploadStates[chatId] = { step: 'admin_reply', userId: userId };
+                    bot.answerCallbackQuery(callbackQuery.id);
+                }
+            });
 
             // ============================================
             // HANDLE BROADCAST, ADD ADMIN, USER CHAT, UPLOAD DETAILS
@@ -1179,109 +1274,6 @@ Do you approve?
             if (isAdmin && db.uploadStates[chatId]?.step) {
                 await handleUploadDetails(chatId, text);
                 return;
-            }
-        });
-
-        // ============================================
-        // ADMIN PAYPAL APPROVAL CALLBACK HANDLERS
-        // ============================================
-
-        bot.on('callback_query', async (callbackQuery) => {
-            const action = callbackQuery.data;
-            const chatId = callbackQuery.message.chat.id;
-            const messageId = callbackQuery.message.message_id;
-
-            if (action.startsWith('approve_paypal_')) {
-                const adminId = parseInt(action.replace('approve_paypal_', ''));
-                const adminInfo = db.admins.find(a => a.id === adminId);
-                
-                if (!adminInfo) {
-                    bot.editMessageText('❌ Admin not found.', {
-                        chat_id: chatId,
-                        message_id: messageId
-                    });
-                    return;
-                }
-
-                adminInfo.paypalApproved = true;
-                
-                bot.editMessageText(`✅ PayPal account for ${adminInfo.firstName} ${adminInfo.lastName} has been approved!\n\n📧 Username: ${adminInfo.paypalUsername}`, {
-                    chat_id: chatId,
-                    message_id: messageId,
-                    reply_markup: {
-                        inline_keyboard: [
-                            [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
-                        ]
-                    }
-                });
-                
-                // Notify the admin (as if bot verified it)
-                try {
-                    await bot.sendMessage(adminId, `✅ Your PayPal account has been verified by the bot!\n\n📧 Username: ${adminInfo.paypalUsername}\n\nYou can now receive payments from users.`);
-                } catch (e) {
-                    console.error('Error notifying admin:', e);
-                }
-                
-                bot.answerCallbackQuery(callbackQuery.id);
-                return;
-            }
-
-            if (action.startsWith('reject_paypal_')) {
-                const adminId = parseInt(action.replace('reject_paypal_', ''));
-                const adminInfo = db.admins.find(a => a.id === adminId);
-                
-                if (!adminInfo) {
-                    bot.editMessageText('❌ Admin not found.', {
-                        chat_id: chatId,
-                        message_id: messageId
-                    });
-                    return;
-                }
-                
-                adminInfo.paypalUsername = null;
-                adminInfo.paypalPassword = null;
-                adminInfo.paypalApproved = false;
-                
-                bot.editMessageText(`❌ PayPal account for ${adminInfo.firstName} ${adminInfo.lastName} has been rejected.`, {
-                    chat_id: chatId,
-                    message_id: messageId,
-                    reply_markup: {
-                        inline_keyboard: [
-                            [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
-                        ]
-                    }
-                });
-                
-                try {
-                    await bot.sendMessage(adminId, `❌ Your PayPal account verification failed. Please try again or contact support.`);
-                } catch (e) {
-                    console.error('Error notifying admin:', e);
-                }
-                
-                bot.answerCallbackQuery(callbackQuery.id);
-                return;
-            }
-
-            // ============================================
-            // HANDLE ADMIN REPLY TO USER
-            // ============================================
-
-            if (action.startsWith('reply_user_')) {
-                const userId = parseInt(action.split('_')[2]);
-                const chatId = callbackQuery.message.chat.id;
-                
-                bot.editMessageText(`💬 Replying to user ${userId}\n\nType your reply below:`, {
-                    chat_id: chatId,
-                    message_id: callbackQuery.message.message_id,
-                    reply_markup: {
-                        inline_keyboard: [
-                            [{ text: '🔙 Cancel', callback_data: 'admin_back' }]
-                        ]
-                    }
-                });
-                
-                db.uploadStates[chatId] = { step: 'admin_reply', userId: userId };
-                bot.answerCallbackQuery(callbackQuery.id);
             }
         });
 
@@ -1327,17 +1319,17 @@ Do you approve?
                 const userId = db.uploadStates[chatId].userId;
                 
                 try {
-                    await bot.sendMessage(userId, `👤 Admin: ${text}`);
-                    bot.sendMessage(chatId, `✅ Reply sent to user ${userId}`, {
+                    await bot.sendMessage(userId, `👤 አስተዳዳሪ: ${text}`);
+                    bot.sendMessage(chatId, `✅ መልስ ለተጠቃሚ ${userId} ተልኳል።`, {
                         reply_markup: {
                             inline_keyboard: [
-                                [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
+                                [{ text: '🔙 ወደ መጀመሪያ ተመለስ', callback_data: 'admin_back' }]
                             ]
                         }
                     });
                     delete db.uploadStates[chatId];
                 } catch (error) {
-                    bot.sendMessage(chatId, `❌ Error sending reply: ${error.message}`);
+                    bot.sendMessage(chatId, `❌ መልስ በመላክ ላይ ስህተት: ${error.message}`);
                 }
             }
         });
@@ -1363,16 +1355,16 @@ function getDashboardStats() {
     const recentActivity = [];
     if (db.payments.length > 0) {
         const latestPayment = db.payments[db.payments.length - 1];
-        recentActivity.push(`💰 New payment from ${latestPayment.userName || 'User'}`);
+        recentActivity.push(`💰 አዲስ ክፍያ ከ${latestPayment.userName || 'ተጠቃሚ'}`);
     }
     if (db.purchases.length > 0) {
         const latestPurchase = db.purchases[db.purchases.length - 1];
         const media = db.media.find(m => m.id === latestPurchase.itemId);
-        recentActivity.push(`📦 Purchase: ${media ? media.title : 'Item'}`);
+        recentActivity.push(`📦 ግዢ: ${media ? media.title : 'ይዘት'}`);
     }
     if (db.users.length > 0) {
         const latestUser = db.users[db.users.length - 1];
-        recentActivity.push(`👤 New user: ${latestUser.firstName}`);
+        recentActivity.push(`👤 አዲስ ተጠቃሚ: ${latestUser.firstName}`);
     }
     
     return {
@@ -1381,7 +1373,7 @@ function getDashboardStats() {
         totalSales,
         totalRevenue,
         pendingPayments,
-        recentActivity: recentActivity.length > 0 ? recentActivity : ['No recent activity']
+        recentActivity: recentActivity.length > 0 ? recentActivity : ['ምንም እንቅስቃሴ የለም']
     };
 }
 
@@ -1419,16 +1411,16 @@ async function handleAdminUpload(msg, chatId, type) {
         db.uploadStates[chatId].duration = type === 'video' ? file.duration : null;
         db.uploadStates[chatId].step = 'title';
         
-        bot.sendMessage(chatId, '📝 Enter the title for this content:', {
+        bot.sendMessage(chatId, '📝 ለዚህ ይዘት ርዕስ ያስገቡ:', {
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: '🔙 Cancel', callback_data: 'admin_upload' }]
+                    [{ text: '🔙 ሰርዝ', callback_data: 'admin_upload' }]
                 ]
             }
         });
     } catch (error) {
         console.error('Error handling upload:', error);
-        bot.sendMessage(chatId, '❌ Error uploading file. Please try again.');
+        bot.sendMessage(chatId, '❌ ፋይል በመስቀል ላይ ስህተት። እባክዎን እንደገና ይሞክሩ።');
         delete db.uploadStates[chatId];
     }
 }
@@ -1440,41 +1432,41 @@ async function handleUploadDetails(chatId, text) {
         case 'title':
             state.title = text;
             state.step = 'description';
-            bot.sendMessage(chatId, '📝 Enter the description:');
+            bot.sendMessage(chatId, '📝 መግለጫ ያስገቡ:');
             break;
             
         case 'description':
             state.description = text;
             state.step = 'price';
-            bot.sendMessage(chatId, '💰 Enter the price (in USD, e.g., 9.99)\n\nType 0 for FREE content:');
+            bot.sendMessage(chatId, '💰 ዋጋ ያስገቡ (በዶላር፣ ለምሳሌ 9.99)\n\nለነጻ ይዘት 0 ይተይቡ:');
             break;
             
         case 'price':
             const price = parseFloat(text);
             if (isNaN(price) || price < 0) {
-                bot.sendMessage(chatId, '❌ Invalid price. Please enter a valid number (0 or higher):');
+                bot.sendMessage(chatId, '❌ ዋጋው ልክ ያልሆነ ነው። እባክዎን ትክክለኛ ቁጥር ያስገቡ (0 ወይም ከዚያ በላይ):');
                 return;
             }
             
             state.price = price;
             state.step = 'confirm';
             
-            const priceText = price === 0 ? 'FREE' : `$${price.toFixed(2)}`;
+            const priceText = price === 0 ? 'ነጻ' : `$${price.toFixed(2)}`;
             const preview = `
-📋 Content Preview:
-Title: ${state.title}
-Description: ${state.description}
-Price: ${priceText}
-Type: ${state.type}
+📋 ይዘት ቅድመ እይታ:
+ርዕስ: ${state.title}
+መግለጫ: ${state.description}
+ዋጋ: ${priceText}
+አይነት: ${state.type}
 
-Confirm upload?
+ማስቀመጥ ይፈልጋሉ?
             `;
             bot.sendMessage(chatId, preview, {
                 reply_markup: {
                     inline_keyboard: [
                         [
-                            { text: '✅ Yes, Upload', callback_data: 'confirm_upload' },
-                            { text: '❌ No, Cancel', callback_data: 'admin_upload' }
+                            { text: '✅ አዎ፣ ስቀል', callback_data: 'confirm_upload' },
+                            { text: '❌ አይ፣ ሰርዝ', callback_data: 'admin_upload' }
                         ]
                     ]
                 }
@@ -1487,12 +1479,12 @@ async function approvePayment(chatId, messageId, paymentId) {
     const payment = db.payments.find(p => p.id === paymentId);
     
     if (!payment) {
-        bot.editMessageText('❌ Payment not found.', {
+        bot.editMessageText('❌ ክፍያ አልተገኘም።', {
             chat_id: chatId,
             message_id: messageId,
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: '🔙 Back', callback_data: 'admin_payments' }]
+                    [{ text: '🔙 ተመለስ', callback_data: 'admin_payments' }]
                 ]
             }
         });
@@ -1500,12 +1492,12 @@ async function approvePayment(chatId, messageId, paymentId) {
     }
 
     if (payment.status === 'approved') {
-        bot.editMessageText('ℹ️ Payment already approved.', {
+        bot.editMessageText('ℹ️ ክፍያው አስቀድሞ ተረጋግጧል።', {
             chat_id: chatId,
             message_id: messageId,
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: '🔙 Back', callback_data: 'admin_payments' }]
+                    [{ text: '🔙 ተመለስ', callback_data: 'admin_payments' }]
                 ]
             }
         });
@@ -1540,19 +1532,19 @@ async function approvePayment(chatId, messageId, paymentId) {
     }
 
     try {
-        await bot.sendMessage(payment.userId, `✅ Your payment for "${media ? media.title : 'item'}" has been approved! You can now access the content.`);
+        await bot.sendMessage(payment.userId, `✅ የክፍያዎ ለ "${media ? media.title : 'ይዘት'}" ተረጋግጧል! አሁን ይዘቱን መጠቀም ይችላሉ።`);
     } catch (e) {
         console.error('Error notifying user:', e);
     }
 
     delete db.paymentStates[payment.userId];
 
-    bot.editMessageText(`✅ Payment ${paymentId} approved successfully!`, {
+    bot.editMessageText(`✅ ክፍያ ${paymentId} በተሳካ ሁኔታ ተረጋግጧል!`, {
         chat_id: chatId,
         message_id: messageId,
         reply_markup: {
             inline_keyboard: [
-                [{ text: '🔙 Back to Payments', callback_data: 'admin_payments' }]
+                [{ text: '🔙 ወደ ክፍያዎች ተመለስ', callback_data: 'admin_payments' }]
             ]
         }
     });
@@ -1562,12 +1554,12 @@ async function rejectPayment(chatId, messageId, paymentId) {
     const payment = db.payments.find(p => p.id === paymentId);
     
     if (!payment) {
-        bot.editMessageText('❌ Payment not found.', {
+        bot.editMessageText('❌ ክፍያ አልተገኘም።', {
             chat_id: chatId,
             message_id: messageId,
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: '🔙 Back', callback_data: 'admin_payments' }]
+                    [{ text: '🔙 ተመለስ', callback_data: 'admin_payments' }]
                 ]
             }
         });
@@ -1575,12 +1567,12 @@ async function rejectPayment(chatId, messageId, paymentId) {
     }
 
     if (payment.status === 'approved') {
-        bot.editMessageText('ℹ️ Payment already approved.', {
+        bot.editMessageText('ℹ️ ክፍያው አስቀድሞ ተረጋግጧል።', {
             chat_id: chatId,
             message_id: messageId,
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: '🔙 Back', callback_data: 'admin_payments' }]
+                    [{ text: '🔙 ተመለስ', callback_data: 'admin_payments' }]
                 ]
             }
         });
@@ -1592,19 +1584,19 @@ async function rejectPayment(chatId, messageId, paymentId) {
     payment.rejectedBy = chatId;
 
     try {
-        await bot.sendMessage(payment.userId, `❌ Your payment has been rejected. Please contact admin for more information.`);
+        await bot.sendMessage(payment.userId, `❌ ክፍያዎ ውድቅ ተደርጓል። ለበለጠ መረጃ እባክዎን አስተዳዳሪውን ያነጋግሩ።`);
     } catch (e) {
         console.error('Error notifying user:', e);
     }
 
     delete db.paymentStates[payment.userId];
 
-    bot.editMessageText(`❌ Payment ${paymentId} rejected.`, {
+    bot.editMessageText(`❌ ክፍያ ${paymentId} ውድቅ ተደርጓል።`, {
         chat_id: chatId,
         message_id: messageId,
         reply_markup: {
             inline_keyboard: [
-                [{ text: '🔙 Back to Payments', callback_data: 'admin_payments' }]
+                [{ text: '🔙 ወደ ክፍያዎች ተመለስ', callback_data: 'admin_payments' }]
             ]
         }
     });
@@ -1617,10 +1609,10 @@ async function handleUserPaymentScreenshot(msg, chatId) {
         );
 
         if (!pendingPayment) {
-            bot.sendMessage(chatId, '❌ No pending payment found. Please start a new payment.', {
+            bot.sendMessage(chatId, '❌ ምንም ያልተረጋገጠ ክፍያ አልተገኘም። እባክዎን አዲስ ክፍያ ይጀምሩ።', {
                 reply_markup: {
                     inline_keyboard: [
-                        [{ text: '💳 Start Payment', callback_data: 'user_payment_start' }]
+                        [{ text: '💳 ክፍያ ጀምር', callback_data: 'user_payment_start' }]
                     ]
                 }
             });
@@ -1636,12 +1628,12 @@ async function handleUserPaymentScreenshot(msg, chatId) {
         } else if (msg.document) {
             file = msg.document;
             if (!file.mime_type || !file.mime_type.startsWith('image/')) {
-                bot.sendMessage(chatId, '❌ Please send an image file as screenshot.');
+                bot.sendMessage(chatId, '❌ እባክዎን የምስል ፋይል እንደ ስክሪን ሾት ይላኩ።');
                 return;
             }
             fileName = `screenshot-${Date.now()}.jpg`;
         } else {
-            bot.sendMessage(chatId, '❌ Please send a photo or image file.');
+            bot.sendMessage(chatId, '❌ እባክዎን ፎቶ ወይም የምስል ፋይል ይላኩ።');
             return;
         }
         
@@ -1667,39 +1659,39 @@ async function handleUserPaymentScreenshot(msg, chatId) {
         pendingPayment.status = 'pending_approval';
         pendingPayment.screenshotDate = new Date().toISOString();
 
-        bot.sendMessage(chatId, '✅ Payment screenshot received! Admin will review and approve shortly.', {
+        bot.sendMessage(chatId, '✅ የክፍያ ስክሪን ሾት ተቀብለናል! አስተዳዳሪ በቅርቡ ያረጋግጠዋል።', {
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: '📱 Open App', callback_data: 'user_open_app' }]
+                    [{ text: '📱 መተግበሪያ ክፈት', callback_data: 'user_open_app' }]
                 ]
             }
         });
 
         const user = db.users.find(u => u.id === chatId);
-        const userName = user ? user.firstName || 'User' : 'User';
+        const userName = user ? user.firstName || 'ተጠቃሚ' : 'ተጠቃሚ';
 
         const adminMessage = `
-💳 PAYMENT SCREENSHOT RECEIVED!
+💳 የክፍያ ስክሪን ሾት ተቀብለናል!
 
-👤 User: ${userName} (${chatId})
-📦 Item: ${pendingPayment.itemName || 'Unknown'}
-💰 Amount: $${pendingPayment.amount}
-📅 Date: ${new Date().toISOString()}
-🆔 Payment ID: ${pendingPayment.id}
+👤 ተጠቃሚ: ${userName} (${chatId})
+📦 ይዘት: ${pendingPayment.itemName || 'ያልታወቀ'}
+💰 መጠን: $${pendingPayment.amount}
+📅 ቀን: ${new Date().toISOString()}
+🆔 መታወቂያ: ${pendingPayment.id}
 
-📸 Screenshot attached below.
+📸 ስክሪን ሾቱ ከታች ተያይዟል።
         `;
 
         for (const admin of db.admins) {
-            if (admin.paypalApproved) {
+            if (admin.telebirrApproved) {
                 try {
                     await bot.sendPhoto(admin.id, localPath, {
                         caption: adminMessage,
                         reply_markup: {
                             inline_keyboard: [
                                 [
-                                    { text: '✅ Approve', callback_data: `approve_${pendingPayment.id}` },
-                                    { text: '❌ Reject', callback_data: `reject_${pendingPayment.id}` }
+                                    { text: '✅ አረጋግጥ', callback_data: `approve_${pendingPayment.id}` },
+                                    { text: '❌ ውድቅ አድርግ', callback_data: `reject_${pendingPayment.id}` }
                                 ]
                             ]
                         }
@@ -1715,7 +1707,7 @@ async function handleUserPaymentScreenshot(msg, chatId) {
 
     } catch (error) {
         console.error('Error handling screenshot:', error);
-        bot.sendMessage(chatId, '❌ Error processing screenshot. Please try again.');
+        bot.sendMessage(chatId, '❌ ስክሪን ሾት በማስኬድ ላይ ስህተት። እባክዎን እንደገና ይሞክሩ።');
         delete db.paymentStates[chatId];
     }
 }
@@ -1726,17 +1718,17 @@ async function handleBroadcast(chatId, message) {
     
     for (const user of users) {
         try {
-            await bot.sendMessage(user.id, `📢 Admin Broadcast:\n\n${message}`);
+            await bot.sendMessage(user.id, `📢 አስተዳዳሪ ማስታወቂያ:\n\n${message}`);
             successCount++;
         } catch (e) {
             console.error('Error broadcasting to user:', e);
         }
     }
     
-    bot.sendMessage(chatId, `✅ Broadcast sent to ${successCount} users.`, {
+    bot.sendMessage(chatId, `✅ ማስታወቂያ ለ ${successCount} ተጠቃሚዎች ተልኳል።`, {
         reply_markup: {
             inline_keyboard: [
-                [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
+                [{ text: '🔙 ወደ መጀመሪያ ተመለስ', callback_data: 'admin_back' }]
             ]
         }
     });
@@ -1748,12 +1740,12 @@ async function handleAddAdmin(chatId, text) {
     const newAdminId = parseInt(text);
     
     if (isNaN(newAdminId)) {
-        bot.sendMessage(chatId, '❌ Invalid ID. Please send a valid Telegram ID (numbers only).');
+        bot.sendMessage(chatId, '❌ ልክ ያልሆነ መታወቂያ። እባክዎን ትክክለኛ የቴሌግራም መታወቂያ ይላኩ (ቁጥሮች ብቻ)።');
         return;
     }
     
     if (db.admins.some(a => a.id === newAdminId)) {
-        bot.sendMessage(chatId, 'ℹ️ This user is already an admin.');
+        bot.sendMessage(chatId, 'ℹ️ ይህ ተጠቃሚ አስቀድሞ አስተዳዳሪ ነው።');
         delete db.uploadStates[chatId];
         return;
     }
@@ -1768,31 +1760,31 @@ async function handleAddAdmin(chatId, text) {
             addedAt: new Date().toISOString(),
             addedBy: chatId,
             role: 'admin',
-            paypalUsername: null,
-            paypalPassword: null,
-            paypalApproved: false
+            telebirrNumber: null,
+            telebirrPassword: null,
+            telebirrApproved: false
         };
         
         db.admins.push(newAdmin);
-        bot.sendMessage(chatId, `✅ ${newAdmin.firstName} has been added as admin!`, {
+        bot.sendMessage(chatId, `✅ ${newAdmin.firstName} እንደ አስተዳዳሪ ተጨምረዋል!`, {
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: '🔙 Back to Menu', callback_data: 'admin_back' }]
+                    [{ text: '🔙 ወደ መጀመሪያ ተመለስ', callback_data: 'admin_back' }]
                 ]
             }
         });
         
-        bot.sendMessage(newAdminId, `🎉 You have been added as an admin to Cheerful Chick Bot!\n\n⚠️ Please set up your PayPal account by clicking the button below.`, {
+        bot.sendMessage(newAdminId, `🎉 ለCheerful Chick ቦት እንደ አስተዳዳሪ ተጨምረዋል!\n\n⚠️ እባክዎን ከታች ያለውን ቁልፍ በመጫን የቴሌብር መለያዎን ያዘጋጁ።`, {
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: '💰 Set up PayPal', callback_data: 'admin_setup_paypal' }]
+                    [{ text: '💰 ቴሌብር አዘጋጅ', callback_data: 'admin_setup_telebirr' }]
                 ]
             }
         });
         
         delete db.uploadStates[chatId];
     } catch (error) {
-        bot.sendMessage(chatId, `❌ Error adding admin: ${error.message}`);
+        bot.sendMessage(chatId, `❌ አስተዳዳሪ በመጨመር ላይ ስህተት: ${error.message}`);
         delete db.uploadStates[chatId];
     }
 }
@@ -1809,15 +1801,15 @@ async function handleUserChat(chatId, message) {
     db.messages.push(newMessage);
     
     const user = db.users.find(u => u.id === chatId);
-    const userName = user ? user.firstName || 'User' : 'User';
+    const userName = user ? user.firstName || 'ተጠቃሚ' : 'ተጠቃሚ';
     
     for (const admin of db.admins) {
-        if (admin.paypalApproved) {
+        if (admin.telebirrApproved) {
             try {
-                await bot.sendMessage(admin.id, `💬 New message from ${userName} (${chatId}):\n\n${message}`, {
+                await bot.sendMessage(admin.id, `💬 አዲስ መልእክት ከ${userName} (${chatId}):\n\n${message}`, {
                     reply_markup: {
                         inline_keyboard: [
-                            [{ text: '💬 Reply', callback_data: `reply_user_${chatId}` }]
+                            [{ text: '💬 መልስ ላክ', callback_data: `reply_user_${chatId}` }]
                         ]
                     }
                 });
@@ -1827,10 +1819,10 @@ async function handleUserChat(chatId, message) {
         }
     }
     
-    bot.sendMessage(chatId, '✅ Message sent to admin. They will respond shortly.', {
+    bot.sendMessage(chatId, '✅ መልእክት ለአስተዳዳሪ ተልኳል። በቅርቡ ምላሽ ይሰጣሉ።', {
         reply_markup: {
             inline_keyboard: [
-                [{ text: '🔙 Back', callback_data: 'user_back' }]
+                [{ text: '🔙 ተመለስ', callback_data: 'user_back' }]
             ]
         }
     });
@@ -2185,10 +2177,10 @@ app.post('/api/chat/send', (req, res) => {
         const userName = user ? user.firstName || 'User' : 'User';
         
         db.admins.forEach(admin => {
-            if (admin.paypalApproved) {
+            if (admin.telebirrApproved) {
                 try {
                     if (admin.id !== parseInt(userId)) {
-                        bot.sendMessage(admin.id, `💬 New message from ${userName} (${userId}):\n\n${message}`);
+                        bot.sendMessage(admin.id, `💬 አዲስ መልእክት ከ${userName} (${userId}):\n\n${message}`);
                     }
                 } catch (e) {
                     console.error('Error notifying admin:', e);
